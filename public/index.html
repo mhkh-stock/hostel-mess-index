@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hostel + Mess Index — Pakistan</title>
+<link rel="stylesheet" href="/styles.css"></head>
+<body>
+<header><h1>🏠 Hostel + Mess Index</h1>
+<p class="sub">Hostel rents + mess rates by university area — Peshawar · Lahore · Islamabad</p>
+<p class="urdu">ہاسٹل اور میس کی قیمتیں — تصدیق شدہ اور کمیونٹی لسٹنگز</p></header>
+<main>
+<section class="card"><h2>Find a hostel</h2>
+<div class="filters">
+<label>City <select id="city"><option value="">All cities</option></select></label>
+<label>Area <select id="area"><option value="">All areas</option></select></label>
+<label>Type <select id="type"><option value="">Any</option><option value="boys">Boys</option><option value="girls">Girls</option><option value="family">Family</option></select></label>
+<label>Room <select id="room"><option value="">Any</option><option value="single">Single</option><option value="double">Double</option><option value="triple">Triple</option><option value="dorm">Dormitory</option></select></label>
+<label>Mess <select id="mess"><option value="">Any</option><option value="included">Mess included</option><option value="separate">Mess separate</option></select></label>
+<label>Max rent (PKR) <input id="maxRent" type="number" placeholder="e.g. 20000"></label>
+<label>Sort <select id="sort"><option value="asc">Cheapest first</option><option value="desc">Costliest first</option></select></label>
+<label class="chk"><input id="showExamples" type="checkbox"> Show EXAMPLE demo listings</label>
+<button id="searchBtn">Search</button>
+</div>
+<p id="counts"></p>
+<div id="results"></div>
+</section>
+
+<section class="card"><h2>Monthly total calculator</h2>
+<p>Pick a listing, add your extras (laundry, transport, etc.) — rent + mess + extras.</p>
+<label>Listing <select id="calcListing"></select></label>
+<label>Extras per month (PKR) <input id="calcExtras" type="number" value="0"></label>
+<button id="calcBtn">Calculate</button>
+<p id="calcOut"></p>
+</section>
+
+<section class="card"><h2>Compare (up to 3)</h2>
+<p>Tick up to 3 listings above, then compare them side by side.</p>
+<button id="compareBtn">Compare selected</button>
+<div id="compareOut"></div>
+</section>
+
+<section class="card"><h2>Submit a hostel</h2>
+<p>Community submissions start as <b>LISTED</b> (unverified). They are never shown as verified until an admin confirms them with a source.</p>
+<form id="submitForm">
+<input name="name" placeholder="Hostel name" required>
+<select name="city" id="subCity" required></select>
+<select name="area" id="subArea" required></select>
+<input name="near_university" placeholder="Near university (e.g. UET Peshawar)">
+<select name="type" required><option value="boys">Boys</option><option value="girls">Girls</option><option value="family">Family</option></select>
+<select name="room" required><option value="single">Single</option><option value="double">Double</option><option value="triple">Triple</option><option value="dorm">Dormitory</option></select>
+<input name="rent_pkr" type="number" placeholder="Rent per month (PKR)" required>
+<label class="chk"><input name="mess_included" type="checkbox"> Mess included in rent</label>
+<input name="mess_pkr" type="number" placeholder="Mess per month (PKR, if separate)">
+<input name="meals_per_day" type="number" placeholder="Meals per day">
+<div id="facChecks"></div>
+<input name="source" placeholder="Source (e.g. hostel website, Facebook post)">
+<button>Submit listing</button>
+</form><p id="submitOut"></p>
+</section>
+
+<section class="card"><h2>Market ranges (reference — not one hostel's rent)</h2>
+<div id="refs"></div>
+</section>
+</main>
+<footer>
+<p><b>Honest limits:</b> LISTED prices are community claims, not confirmations. Only VERIFIED rows carry an admin source. Ranges are market ranges, not one hostel's rent. No booking or payment happens in this app — contact the hostel directly.</p>
+<p><a href="/admin">Admin</a></p>
+</footer>
+<script src="/app.js"></script>
+</body></html>
