@@ -195,11 +195,56 @@ labelled "as stated by the hostel" — never computed, never invented.
 - **3 EXAMPLE listings** (generic demo names, excluded everywhere).
 - **Zero invented hostels with fake rents.** No other hostel is claimed.
 
+## The 3D dashboard look (what it really is)
+
+The home page looks like a 3D dashboard, and every part of that look
+is honest about what it is:
+
+- **The hostel map is pure CSS 3D** — an isometric floor built from
+  CSS shapes (rotated floor, back wall, room blocks, sofa, round
+  table, plants). There are **no images, no canvas, no CDN, no
+  external fonts** anywhere on the site. One room-block per
+  VERIFIED or LISTED hostel from the live `/api/listings` data (6 on
+  the seed); each block is a real link to that hostel's detail page
+  and shows its real name and real rent (semester rows keep their
+  per-semester figure). The wall screen is a real bar chart of the
+  same monthly rents. A student figure on a block is labelled only
+  with the display name of an approved reviewer on that hostel — no
+  approved review, no name label, no invented name. **EXAMPLE demo
+  listings never appear on the map**, in the stat cards, or in any
+  count; they show only in the plain list when the user ticks "Show
+  EXAMPLE demo listings".
+- **The stat cards are live numbers**, computed in the browser from
+  the same `/api/listings` data the page shows: hostels listed
+  (VERIFIED + LISTED), rooms (seat numbers only where actually
+  stated), student reviews (approved only), cheapest rent (lowest
+  monthly-equivalent rent, semester rows at rent ÷ 6, labelled as
+  such). Nothing is hardcoded; with no listings the cards say so
+  instead of showing a made-up number.
+- **"Ask Hostel AI" is not AI.** The panel says so in plain words
+  ("Shortcuts — no AI here yet") and holds only four shortcuts that
+  filter the real list and the real map: pending reviews (managers
+  only, otherwise a login message), vacant rooms, cheapest hostels,
+  verified only. A chip and the map always agree — chips operate on
+  VERIFIED + LISTED hostels only, so the chip's status line, the
+  list and the scene can never disagree about EXAMPLE rows.
+- The other four pages (detail, login, manager, admin) use the same
+  shell: top pill nav, left icon rail (a bottom bar on phones),
+  glass cards, same tokens. A logged-in user gets a Log out pill in
+  the nav on every page.
+
 ## Features
 
 - Filters: city, area, type (boys / girls / family), room (single /
   double / triple / dorm), mess included vs separate, max rent;
   sort by rent ascending / descending.
+- 3D home-page map (pure CSS, no images): one room-block per
+  VERIFIED/LISTED hostel linking to its detail page, wall-screen
+  rent chart, student figures labelled only with real approved
+  reviewers; EXAMPLE rows never on the map.
+- Live stat cards (hostels, rooms stated, approved reviews,
+  cheapest rent) + an "Ask Hostel AI" panel of four honest shortcuts
+  (no AI behind it — the panel says so).
 - Monthly total calculator: rent + mess (only when charged
   separately) + user extras.
 - Compare up to 3 listings side by side.
@@ -222,7 +267,7 @@ labelled "as stated by the hostel" — never computed, never invented.
 ```
 node server.js            # port 3034 (env PORT)
 DB_FILE=/tmp/hostel.sqlite UPLOADS_DIR=/tmp/hostel-uploads ADMIN_CODE=your-private-code node server.js
-node test.js              # 306 tests on a throwaway DB
+node test.js              # 404 tests on a throwaway DB
 ```
 
 `ADMIN_CODE` is **required** — the server exits with a FATAL message
@@ -249,3 +294,9 @@ startup and all sessions end when the server restarts.
 - Reviews are student reports, not verified stays.
 - Uploaded photos are lost when the site is redeployed.
 - No booking or payment happens in the app.
+- The 3D map is CSS shapes, not photos or a live map, and the "Ask
+  Hostel AI" panel is shortcuts, not AI.
+- A real 375px phone visual check is still outstanding (Hashir's PC
+  re-test) — the mobile rules (bottom rail bar, stacked forms,
+  44px tap targets, no page-level horizontal overflow) are verified
+  by CSS inspection + tests only, not by looking at a phone.
