@@ -1,15 +1,290 @@
-*{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;background:#f6f3ee;color:#232136}
-header{background:#312e81;color:#fff;padding:1.2rem 1rem;text-align:center}
-header h1{margin:0}.sub{opacity:.9}.urdu{font-size:1.1rem}
-main{max-width:900px;margin:0 auto;padding:1rem}
-.card{background:#fff;border:1px solid #e5e0d5;border-radius:12px;padding:1rem;margin:1rem 0}
+/* Hostel + Mess Index — Phase 1 design system (3D-dashboard shell).
+   Tokens mirror the "3D Dashboard With Ai" reel: light grey canvas,
+   white pill nav, left icon rail, frosted glass cards, orange accent.
+   The 3D hostel scene itself lands in Phase 2; this phase is the shell.
+   Contrast: every text/background token pair passes WCAG AA 4.5:1
+   (checked by tests in test.js). The bright orange #ff6b1a is
+   decorative only — white text on it is 2.85:1, so text and filled
+   buttons use the deeper oranges below. */
+:root{
+  --bg:#e8e8ec;
+  --surface:#ffffff;
+  --glass:rgba(255,255,255,0.72);
+  --glass-border:rgba(255,255,255,0.95);
+  --text:#1f1e26;
+  --text-muted:#55555f;
+  --accent:#ff6b1a;
+  --accent-text:#9a3412;
+  --accent-btn:#c2410a;
+  --accent-btn-hover:#9a3412;
+  --green:#15803d;
+  --green-bg:#dcfce7;
+  --green-text:#166534;
+  --amber-bg:#fef3c7;
+  --amber-text:#92400e;
+  --blue-bg:#e0e7ff;
+  --blue-text:#3730a3;
+  --border:#dcdce2;
+  --radius:18px;
+  --radius-sm:12px;
+  --radius-pill:999px;
+  --shadow:0 8px 24px rgba(31,30,38,.08);
+  --shadow-lg:0 16px 40px rgba(31,30,38,.14);
+  --tap:44px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:var(--bg);color:var(--text);line-height:1.5}
+h1,h2,h3,h4{line-height:1.25}
+a{color:var(--accent-text)}
+:focus-visible{outline:3px solid var(--accent-btn);outline-offset:2px;border-radius:4px}
+.urdu{font-size:1.05rem}
+
+/* ---- Top pill nav (sticky) ---- */
+.topnav{position:sticky;top:12px;z-index:50;display:flex;align-items:center;gap:12px;width:calc(100% - 24px);max-width:1280px;margin:12px auto 0;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);box-shadow:var(--shadow)}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;color:var(--text);font-weight:800;font-size:1.05rem;white-space:nowrap}
+.logo-dot{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex:none;border-radius:50%;background:var(--accent);color:var(--text);font-weight:800;font-size:1.15rem}
+.nav-pills{display:flex;gap:4px;margin:0 auto;padding:4px;background:var(--bg);border-radius:var(--radius-pill)}
+.nav-pill{display:inline-flex;align-items:center;gap:6px;min-height:var(--tap);padding:6px 12px;border-radius:var(--radius-pill);color:var(--text-muted);text-decoration:none;font-weight:600;font-size:.92rem;white-space:nowrap}
+.nav-pill:hover{background:var(--surface);color:var(--text)}
+.nav-pill.is-active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.nav-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:var(--tap);height:var(--tap);flex:none;padding:0;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--text);font-size:1.2rem;cursor:pointer}
+.icon-btn:hover{background:var(--bg)}
+/* Bell drawn in pure CSS (no emoji icon font, no image). */
+.icon-bell{position:relative;display:inline-block;width:20px;height:20px;color:var(--text)}
+.icon-bell::before{content:"";position:absolute;left:3px;top:1px;width:14px;height:11px;background:currentColor;border-radius:10px 10px 3px 3px}
+.icon-bell::after{content:"";position:absolute;left:8px;top:14px;width:4px;height:4px;border-radius:50%;background:currentColor}
+.bell-wrap{position:relative}
+.bell-pop{position:absolute;right:0;top:52px;width:260px;max-width:80vw;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);z-index:60}
+.bell-pop p{margin:.3rem 0}
+.avatar{display:flex;align-items:center;gap:8px;min-width:0;text-decoration:none;color:var(--text)}
+.avatar-circle{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;flex:none;border-radius:50%;background:var(--text);color:#fff;font-weight:700}
+.avatar-text{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+.avatar-text span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#avatarName{font-weight:700;font-size:.9rem}
+.avatar-role{font-size:.78rem;color:var(--text-muted)}
+
+/* ---- Shell: left icon rail + main column ---- */
+.shell{display:grid;grid-template-columns:72px minmax(0,1fr);gap:16px;max-width:1280px;margin:0 auto;padding:16px}
+.rail{position:sticky;top:88px;align-self:start;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);box-shadow:var(--shadow)}
+.rail-btn{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;color:var(--text);text-decoration:none;font-size:1.35rem}
+.rail-btn:hover{background:var(--bg)}
+.rail-btn.is-active{background:var(--text);color:#fff}
+.main{min-width:0;display:flex;flex-direction:column;gap:16px}
+
+/* ---- Glass cards ---- */
+.card,.glass-card{background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--glass-border);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.1rem 1.2rem;margin:0;transition:transform .18s ease,box-shadow .18s ease}
+.card:hover,.glass-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-lg)}
+.card h2{margin-top:0}
+main .card{margin:1rem 0}
+.main .card{margin:0}
+.sub{color:var(--text-muted)}
+
+/* ---- Scene area (Phase 2 builds the real 3D hostel here) ---- */
+.scene{position:relative;min-height:700px;overflow:hidden;border:1px solid var(--border);border-radius:var(--radius);background:linear-gradient(180deg,#f4f4f7,#e2e2e8);box-shadow:var(--shadow)}
+.scene-inner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:72px 16px 24px;transition:transform .2s ease;transform-origin:center center}
+.scene-loading{color:var(--text-muted);text-align:center}
+.greeting{position:absolute;top:16px;left:16px;max-width:340px}
+.greeting h2{margin:0;font-size:1.15rem}
+.greeting-sub{display:flex;align-items:center;gap:8px;margin:6px 0 0;color:var(--text-muted);font-size:.9rem}
+.dot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--green)}
+.scene-actions{position:absolute;top:16px;right:16px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;min-height:var(--tap);padding:8px 14px;border:1px solid transparent;border-radius:var(--radius-pill);font-weight:600;font-size:.9rem;text-decoration:none;cursor:pointer;white-space:nowrap}
+.pill-light{background:var(--surface);color:var(--text);border-color:var(--border);box-shadow:var(--shadow)}
+.pill-dark{background:var(--text);color:#fff}
+.pill-accent{background:var(--accent-btn);color:#fff}
+.pill-accent:hover{background:var(--accent-btn-hover)}
+.zoom{position:absolute;right:16px;bottom:16px;display:flex;flex-direction:column;align-items:center;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);box-shadow:var(--shadow)}
+.zoom button{display:flex;align-items:center;justify-content:center;width:40px;height:var(--tap);padding:0;border:0;border-radius:50%;background:transparent;color:var(--text);font-size:1.25rem;font-weight:700;cursor:pointer}
+.zoom button:hover{background:var(--bg)}
+#zoomLevel{font-size:.72rem;font-weight:700;color:var(--text-muted);padding:2px 0}
+
+/* ---- Forms, listings, tables (shared by every page) ---- */
+main{max-width:900px;margin:0 auto;padding:16px}
+.shell main{max-width:none;margin:0;padding:0}
 .filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.6rem}
-input,select,button{padding:.5rem;border:1px solid #ccc;border-radius:8px;font-size:1rem}
-button{background:#312e81;color:#fff;cursor:pointer}
-.listing{border-top:1px solid #eee;padding:.8rem 0}
+input,select,textarea,button{font:inherit}
+input,select,textarea{width:100%;min-height:var(--tap);padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:1rem}
+label{display:block;font-weight:600;font-size:.92rem}
+label input,label select,label textarea{margin-top:4px;font-weight:400}
+button{background:var(--accent-btn);color:#fff;border:1px solid transparent;border-radius:var(--radius-pill);padding:10px 18px;min-height:var(--tap);font-weight:700;cursor:pointer}
+button:hover{background:var(--accent-btn-hover)}
+.listing{border-top:1px solid var(--border);padding:.8rem 0}
+.listing h3{margin:.2rem 0}
 .b{display:inline-block;padding:.15rem .5rem;border-radius:20px;font-size:.8rem;font-weight:700}
-.b.v{background:#dcfce7;color:#166534}.b.l{background:#fef3c7;color:#92400e}.b.e{background:#e0e7ff;color:#3730a3}
-.src{color:#666;font-size:.9rem}
-table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:.4rem;text-align:left}
-footer{max-width:900px;margin:0 auto;padding:1rem;color:#555}
-.chk{display:flex;align-items:center;gap:.3rem}
+.b.v{background:var(--green-bg);color:var(--green-text)}
+.b.l{background:var(--amber-bg);color:var(--amber-text)}
+.b.e{background:var(--blue-bg);color:var(--blue-text)}
+.src{color:var(--text-muted);font-size:.9rem}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid var(--border);padding:.4rem;text-align:left}
+th{background:var(--bg)}
+#compareOut{overflow-x:auto}
+.chk{display:flex;align-items:center;gap:.5rem;font-weight:400;min-height:var(--tap)}
+.chk input{width:auto;min-height:0;margin-top:0}
+#results p,#counts{color:var(--text-muted)}
+
+/* ---- Phase 2: 3D hostel scene (home page only) ----
+   Pure CSS 3D, no images. The isometric floor (rotateX/rotateZ) is the
+   map: one room-block per VERIFIED/LISTED hostel. Upright children
+   (labels, people, plant tops) counter-rotate the floor with
+   rotateZ(45deg) rotateX(-60deg) so they face the viewer. Room labels
+   float above their block; the wall screen charts real monthly rents. */
+.scene3d{position:relative;width:860px;height:560px;flex:none;perspective:1200px}
+.iso-floor{position:absolute;left:50%;top:50%;width:640px;height:425px;margin-left:-320px;margin-top:-212px;
+  background:
+    repeating-linear-gradient(90deg,rgba(120,72,20,.16) 0 2px,transparent 2px 64px),
+    repeating-linear-gradient(0deg,rgba(120,72,20,.09) 0 2px,transparent 2px 32px),
+    linear-gradient(180deg,#ddb183,#d2a06e);
+  border-radius:8px;box-shadow:0 24px 48px rgba(31,30,38,.22);
+  transform:rotateX(60deg) rotateZ(-45deg);transform-style:preserve-3d}
+/* Back wall, standing up from the floor's back edge (leans back ~30°). */
+.iso-wall{position:absolute;left:0;top:-140px;width:640px;height:140px;background:linear-gradient(180deg,#f2ede6,#e9e2d6);border:1px solid #d8d0c2;border-bottom:0;border-radius:8px 8px 0 0;transform-origin:center bottom;transform:rotateX(-90deg);transform-style:preserve-3d}
+/* Wall screen: dark panel, real monthly-rent bars from /api/listings. */
+.wall-screen{position:absolute;left:50%;top:8px;width:400px;height:126px;margin-left:-200px;padding:8px 10px 6px;background:#1f1e26;border-radius:8px;color:#fff}
+.wall-screen-title{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#d4d4d8;margin:0 0 4px}
+.wall-bars{display:flex;gap:6px;height:84px}
+.wall-bar-wrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;min-width:0;height:100%}
+.wall-bar{width:70%;max-width:34px;background:var(--accent);border-radius:3px 3px 0 0}
+.wall-bar-label{margin-top:3px;width:100%;font-size:9px;line-height:1.25;text-align:center;color:#e4e4e7}
+.wall-bar-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wall-bar-label b{display:block;font-size:9px;color:#fff}
+.wall-screen-note{font-size:9px;color:#a1a1aa;margin:2px 0 0}
+/* Wall clock (hands fixed at 10:10, decorative). */
+.wall-clock{position:absolute;right:18px;top:14px;width:52px;height:52px;border-radius:50%;background:#fff;border:2px solid #d8d0c2}
+.wall-clock::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#1f1e26}
+.clock-hand{position:absolute;left:50%;top:50%;width:3px;margin-left:-1.5px;background:#1f1e26;border-radius:2px;transform-origin:50% 0}
+.clock-hand.hour{height:13px;transform:rotate(125deg)}
+.clock-hand.minute{height:18px;transform:rotate(240deg)}
+/* Room-block: the hostel. Top face + extruded front/side faces; the
+   whole block is one <a> to /hostel?id=N (44px+ on screen: ~120px wide
+   and ~60px tall including its faces and floating label). */
+.room-block{position:absolute;width:170px;height:105px;display:block;text-decoration:none;color:var(--text);background:#fdf6ec;border:1.5px solid #e3c98f;border-radius:8px;transform:translateZ(28px);transform-style:preserve-3d;cursor:pointer;transition:transform .18s ease}
+.room-block.is-verified{background:#eef7ee;border-color:#86b98a}
+.room-block::before{content:"";position:absolute;left:0;top:100%;width:100%;height:28px;background:#8a6b45;transform-origin:top;transform:rotateX(-90deg)}
+.room-block::after{content:"";position:absolute;left:100%;top:0;width:28px;height:100%;background:#75583a;transform-origin:left;transform:rotateY(90deg)}
+.room-block:hover{transform:translateZ(36px)}
+.room-block:focus-visible{outline:3px solid var(--accent-btn);outline-offset:3px}
+.room-bed{position:absolute;left:12px;top:12px;width:62px;height:38px;background:#fff;border:1px solid #dcdce2;border-radius:6px}
+.room-bed::after{content:"";position:absolute;left:6px;top:6px;width:16px;height:24px;background:#dbe7f5;border-radius:3px}
+.room-desk{position:absolute;right:10px;bottom:10px;width:44px;height:28px;background:#fff;border:1px solid #dcdce2;border-radius:4px}
+/* Upright counter-rotated children: label above the block, person at
+   the desk, name pill above the person's head (only when a real
+   approved-review name exists — see studentLabel in the app.js scene section). */
+.room-label{position:absolute;left:50%;top:50%;max-width:160px;padding:6px 10px;border-radius:12px;background:rgba(255,255,255,.94);border:1px solid var(--border);box-shadow:var(--shadow);text-align:center;transform:rotateZ(45deg) rotateX(-60deg) translate(-50%,-130%) translateZ(38px)}
+.room-label-name{display:block;font-size:12px;font-weight:800;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-label-rent{display:block;font-size:11px;font-weight:700;color:var(--accent-text)}
+.room-label .st{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:1px}
+.room-label .st.v{background:var(--green)}
+.room-label .st.l{background:#d97706}
+.person{position:absolute;left:72%;top:55%;width:26px;height:44px;transform:rotateZ(45deg) rotateX(-60deg) translate(-50%,-100%) translateZ(6px);transform-style:preserve-3d}
+.person-head{width:16px;height:16px;margin:0 auto;border-radius:50%;background:#e8b98a}
+.person-body{width:22px;height:26px;margin:2px auto 0;border-radius:9px 9px 4px 4px;background:var(--person-color,#c2410a)}
+.person-name{position:absolute;left:72%;top:55%;max-width:110px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.92);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform:rotateZ(45deg) rotateX(-60deg) translate(-50%,-340%) translateZ(10px)}
+/* Dressing: black sofa + coffee table, round meeting table + chairs,
+   small green plants. All pure CSS shapes on the floor plane. */
+.iso-box{position:absolute;transform-style:preserve-3d}
+.iso-box::before{content:"";position:absolute;left:0;top:100%;width:100%;height:var(--box-h,14px);background:rgba(0,0,0,.28);transform-origin:top;transform:rotateX(-90deg)}
+.iso-box::after{content:"";position:absolute;left:100%;top:0;width:var(--box-h,14px);height:100%;background:rgba(0,0,0,.36);transform-origin:left;transform:rotateY(90deg)}
+.sofa{--box-h:14px;width:160px;height:56px;background:#1f1e26;border-radius:10px;transform:translateZ(14px)}
+.sofa-seat{position:absolute;left:10px;top:8px;right:10px;height:20px;background:#2e2d38;border-radius:6px}
+.coffee-table{position:absolute;width:46px;height:46px;border-radius:50%;background:#fff;border:1px solid #e3e3e8;box-shadow:0 2px 6px rgba(31,30,38,.15);transform:translateZ(8px)}
+.round-table-wrap{position:absolute;width:120px;height:120px;transform-style:preserve-3d}
+.round-table{position:absolute;inset:0;border-radius:50%;background:#fff;box-shadow:0 3px 10px rgba(31,30,38,.18);transform:translateZ(12px)}
+.round-table-base{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:#cfc9bd;transform:translateZ(2px)}
+.round-chair{position:absolute;width:18px;height:14px;border-radius:5px;background:#1f1e26;transform:translateZ(4px)}
+.plant{position:absolute;width:26px;height:26px;transform-style:preserve-3d}
+.plant-pot{position:absolute;left:2px;top:8px;width:22px;height:18px;border-radius:4px 4px 10px 10px;background:#fff;border:1px solid #dcdce2}
+.plant-top{position:absolute;left:50%;top:0;width:30px;height:30px;border-radius:50%;background:#22c55e;transform:rotateZ(45deg) rotateX(-60deg) translate(-50%,-90%) translateZ(8px)}
+.plant-top::after{content:"";position:absolute;right:2px;bottom:3px;width:14px;height:14px;border-radius:50%;background:#16a34a}
+/* Honest empty state inside the scene (no listings / load failed). */
+.scene-empty{max-width:440px;margin:0 auto;padding:24px 28px;text-align:center;background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.scene-empty h3{margin-top:0}
+.scene-empty p{color:var(--text-muted)}
+
+/* ---- Phase 3: stat cards + Ask Hostel AI panel ----
+   Stat cards reuse the Phase 1 glass card (blur 12px, hover lift
+   -5px); the panel mirrors the reel's Neon panel (slides in from the
+   right, header + close button, quick chips at the bottom) but holds
+   only honest shortcuts — no chat, no fake AI. */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.stat-card{margin:0}
+.stat-label{margin:0;color:var(--text-muted);font-size:.9rem;font-weight:600}
+.stat-value{margin:.25rem 0;font-size:1.55rem;font-weight:800;line-height:1.2;overflow-wrap:break-word}
+.stat-note{margin:0;color:var(--text-muted);font-size:.85rem}
+.ai-panel{position:fixed;right:16px;top:50%;z-index:70;width:340px;max-width:calc(100vw - 32px);padding:16px;background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--glass-border);border-radius:var(--radius);box-shadow:var(--shadow-lg);transform:translate(120%,-50%);transition:transform .25s ease}
+.ai-panel.is-open{transform:translate(0,-50%)}
+.ai-panel[hidden]{display:none}
+.ai-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.ai-panel-title{display:flex;gap:8px;align-items:flex-start}
+.ai-panel-dot{width:10px;height:10px;flex:none;margin-top:7px;border-radius:50%;background:var(--accent)}
+.ai-panel-title b{display:block;font-size:1rem}
+.ai-panel-sub{display:block;color:var(--text-muted);font-size:.85rem}
+.ai-close{flex:none}
+.ai-honest{color:var(--text-muted);font-size:.9rem}
+.ai-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ai-chips button{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-pill);padding:8px 12px;min-height:var(--tap);font-weight:600;font-size:.9rem;cursor:pointer}
+.ai-chips button:hover{background:var(--bg)}
+.ai-status{font-weight:600}
+.ai-status:empty{display:none}
+.ai-pending{color:var(--text-muted)}
+.ai-show-all{margin-top:4px}
+.ai-show-all[hidden]{display:none}
+
+/* ---- Tablet: keep the greeting and the action pills apart ----
+   At ~640–1100px the greeting card (340px) + the four action pills
+   (~570px) are wider than the main column, so the pills would paint
+   over the greeting's text. Cap the actions to the space right of the
+   greeting instead; they wrap inside that space. Below 980px the
+   greeting narrows to 280px, so the cap widens to match. */
+@media (max-width:1100px){
+  .scene-actions{max-width:calc(100% - 380px)}
+}
+
+/* ---- Mobile: rail becomes a bottom bar, overlays stack ---- */
+@media (max-width:980px){
+  .scene3d{transform:scale(.8)}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .greeting{max-width:280px}
+  .scene-actions{max-width:calc(100% - 320px)}
+}
+@media (max-width:900px){
+  .nav-pills{display:none}
+}
+@media (max-width:640px){
+  .shell{grid-template-columns:1fr;padding:12px 12px 96px}
+  .rail{position:fixed;left:12px;right:12px;bottom:12px;top:auto;z-index:50;flex-direction:row;justify-content:space-around;padding:6px}
+  /* 375px: brand + search + bell + avatar (+ Log out when logged in)
+     do not fit on one row, so the top nav wraps instead of overflowing
+     the page; the brand name ellipsises as a backstop. */
+  .topnav{flex-wrap:wrap}
+  .brand-name{font-size:.95rem;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .avatar-text{display:none}
+  .scene{display:flex;flex-direction:column;min-height:0}
+  .scene-inner{position:static;order:2;min-height:180px;padding:16px;overflow-x:auto;justify-content:flex-start}
+  .scene3d{flex-shrink:0;transform:none}
+  .greeting{position:static;order:1;max-width:none;margin:12px 12px 0}
+  .scene-actions{position:static;order:3;max-width:none;margin:12px 12px 0}
+  .zoom{position:static;order:4;flex-direction:row;align-self:flex-end;margin:12px}
+  .zoom button{width:var(--tap)}
+  .stats{grid-template-columns:1fr}
+  .login-grid{grid-template-columns:1fr}
+  .field-grid{grid-template-columns:1fr}
+  .ai-panel{top:auto;bottom:84px;right:12px;left:12px;width:auto;max-width:none;transform:translateY(130%)}
+  .ai-panel.is-open{transform:translateY(0)}
+}
+
+/* ---- Phase 4: the four remaining pages in the same shell ----
+   Same tokens, same top pill nav + left icon rail (the shell rules
+   above already cover them), same glass cards. Sub-pages get a
+   page-head glass card instead of the old centred header (the old
+   generic header rule is gone — no page uses it any more).
+   The nav log-out button is a pill; the [hidden] rule below is
+   needed because .pill sets display:inline-flex, which would
+   otherwise beat the browser's hidden styling. */
+.page-head h1{margin:0;font-size:1.4rem}
+.page-head .sub{margin:.35rem 0 0}
+.nav-logout[hidden]{display:none}
+.login-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.6rem}

@@ -316,10 +316,58 @@ async function init() {
     $('accountStatus').textContent = `You are logged in as ${u.display_name} (${u.role}). This portal is for managers — students use the login page.`;
     return;
   }
-  $('accountStatus').textContent = `Logged in as ${u.display_name} — Manager · status: ${u.status}.`;
+  const statusText = u.status === 'pending' ? 'Waiting for master approval'
+    : u.status === 'approved' ? 'Approved'
+    : u.status === 'suspended' ? 'Suspended — contact the site admin'
+    : 'status: ' + u.status;
+  $('accountStatus').textContent = `Logged in as ${u.display_name} — Manager · ${statusText}.`;
   $('logoutBtn').hidden = false;
   $('portal').hidden = false;
   loadMy();
   loadReviews();
 }
 init();
+
+// ---- Phase 4 shell: topnav avatar + bell + log-out (same shell as home). ----
+// Logged out: the avatar keeps its "Log in" defaults and the log-out
+// button stays hidden. Logged in: name + role, avatar links to the
+// manager portal for managers, and the log-out button appears.
+function roleLabel(role) {
+  return role === 'manager' ? 'Manager' : role === 'student' ? 'Student' : role;
+}
+async function loadShellUser() {
+  let me;
+  try {
+    const r = await fetch('/api/auth/me');
+    if (!r.ok) return;
+    me = await r.json();
+  } catch { return; }
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText('avatarInitial', (me.display_name || '?').trim().charAt(0).toUpperCase() || '?');
+  setText('avatarName', me.display_name || roleLabel(me.role));
+  setText('avatarRole', roleLabel(me.role));
+  const link = document.getElementById('avatarLink');
+  if (link) link.href = me.role === 'manager' ? '/manager' : '/login';
+  const out = document.getElementById('navLogoutBtn');
+  if (out) out.hidden = false;
+}
+const bellBtn = document.getElementById('bellBtn');
+if (bellBtn) bellBtn.addEventListener('click', () => {
+  const pop = document.getElementById('bellPop');
+  const open = pop.hidden;
+  pop.hidden = !open;
+  bellBtn.setAttribute('aria-expanded', String(open));
+});
+document.addEventListener('click', ev => {
+  const pop = document.getElementById('bellPop');
+  if (pop && !pop.hidden && !ev.target.closest('.bell-wrap')) {
+    pop.hidden = true;
+    if (bellBtn) bellBtn.setAttribute('aria-expanded', 'false');
+  }
+});
+const navLogoutBtn = document.getElementById('navLogoutBtn');
+if (navLogoutBtn) navLogoutBtn.addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.reload();
+});
+loadShellUser();
