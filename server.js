@@ -1,7 +1,7 @@
 // Hostel + Mess Index — structured, verified hostel/PG rents + mess rates
 // + price history by university area (Peshawar, Lahore, Islamabad).
 // Honesty model: VERIFIED = admin-confirmed with a source note; LISTED =
-// community-submitted, unverified claim; EXAMPLE = demo only, excluded from
+// manager-submitted, unverified claim; EXAMPLE = demo only, excluded from
 // default search and from all counts. Ranges are market ranges, never one
 // hostel's rent. No booking or payment happens here.
 // Node.js 24+, native node:http + node:sqlite only. No external dependencies.
@@ -1852,48 +1852,6 @@ const server = http.createServer(async (req, res) => {
       mess: pub.mess_included ? 0 : pub.mess_pkr, extras,
       total: monthlyTotal(pub, extras),
     });
-  }
-
-  if (req.method === 'POST' && p === '/api/listings') {
-    const b = await readBody(req);
-    if (!b) return send(res, 400, { error: 'invalid JSON' });
-    // Community submissions get the same boundary validation as manager
-    // creates: enums, integer ranges, length caps, unknown fields rejected.
-    // (Before Phase 5 this endpoint silently ignored unknown fields, took
-    // float/uncapped values and filtered bad facilities instead of 400ing.)
-    const uf = unknownField(b, ['name', 'city', 'area', 'near_university', 'type', 'room',
-      'rent_pkr', 'mess_included', 'mess_pkr', 'meals_per_day', 'facilities', 'source']);
-    if (uf) return send(res, 400, { error: uf });
-    if (!b.name || typeof b.name !== 'string' || b.name.trim().length < 3 || b.name.trim().length > 100)
-      return send(res, 400, { error: 'name required (3–100 characters)' });
-    if (!CITIES.includes(b.city)) return send(res, 400, { error: 'invalid city' });
-    if (!AREAS[b.city].includes(b.area)) return send(res, 400, { error: 'invalid area for city' });
-    if (!TYPES.includes(b.type)) return send(res, 400, { error: 'invalid type' });
-    if (!ROOMS.includes(b.room)) return send(res, 400, { error: 'invalid room' });
-    if (b.near_university !== undefined && (typeof b.near_university !== 'string' || b.near_university.length > 200))
-      return send(res, 400, { error: 'near_university too long (max 200)' });
-    if (b.source !== undefined && (typeof b.source !== 'string' || b.source.length > 500))
-      return send(res, 400, { error: 'source too long (max 500)' });
-    const rent = toInt(b.rent_pkr);
-    if (rent === null || rent <= 0 || rent >= MAX_RENT) return send(res, 400, { error: 'invalid rent' });
-    const messRaw = b.mess_pkr === undefined || b.mess_pkr === null || b.mess_pkr === '' ? 0 : toInt(b.mess_pkr);
-    if (messRaw === null || messRaw < 0 || messRaw >= MAX_RENT) return send(res, 400, { error: 'invalid mess price' });
-    const mealsRaw = b.meals_per_day === undefined || b.meals_per_day === null || b.meals_per_day === '' ? 0 : toInt(b.meals_per_day);
-    if (mealsRaw === null || mealsRaw < 0 || mealsRaw > 10) return send(res, 400, { error: 'invalid meals_per_day' });
-    if (b.mess_included !== undefined && typeof b.mess_included !== 'boolean' && b.mess_included !== 0 && b.mess_included !== 1)
-      return send(res, 400, { error: 'invalid mess_included' });
-    if (b.facilities !== undefined && (!Array.isArray(b.facilities) || b.facilities.length > 10 || b.facilities.some(f => !FACILITIES.includes(f))))
-      return send(res, 400, { error: 'invalid facilities' });
-    const facs = Array.isArray(b.facilities) ? b.facilities : [];
-    const mess = messRaw;
-    const info = db.prepare(`INSERT INTO listings
-      (name, city, area, near_university, type, room, rent_pkr, price_basis, mess_included,
-       mess_pkr, meals_per_day, facilities, source, status)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?, 'LISTED')`).run(
-      b.name.trim(), b.city, b.area, b.near_university || '', b.type, b.room, rent, 'month',
-      b.mess_included ? 1 : 0, b.mess_included ? 0 : mess, mealsRaw,
-      JSON.stringify(facs), b.source || 'Community submission (unverified)');
-    return send(res, 201, { id: Number(info.lastInsertRowid), status: 'LISTED' });
   }
 
   if (req.method === 'POST' && p === '/api/admin/verify') {
