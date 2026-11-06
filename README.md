@@ -1,8 +1,46 @@
 # Hostel + Mess Index
 
 Structured, verified hostel/PG rents + mess rates + price history by
-university area — Peshawar, Lahore, Islamabad. No booking or payment
-happens here; contact the hostel directly.
+university area — Peshawar, Lahore, Islamabad. Managers run their own
+listings (fees, photos, map, contact, rental period) and students log
+in to write reviews, which the hostel manager checks before they go
+public. No booking or payment happens here; contact the hostel
+directly.
+
+## Roles (exact scoping)
+
+- **Master** (Hashir, via the private `ADMIN_CODE` header — there is
+  no master login form): approves / rejects / suspends / reinstates
+  manager accounts, verifies listings (source note still required),
+  assigns an ownerless legacy listing to a manager, hides or restores
+  any listing, sees every review including rejected ones, overturns
+  any moderation decision, removes any photo or manager reply, resets
+  a password (kills all that account's sessions). Cannot be
+  self-registered.
+- **Manager** (Gmail + password, master-approved): full CRUD on ONLY
+  their own hostel(s) — details, fees, photos, map, contact, rental
+  period, availability. Moderates reviews on ONLY their own hostels
+  (approve / reject with a reason, public reply). Cannot touch
+  another manager's hostel (403), cannot verify their own listing,
+  cannot delete a review (only reject with a reason — it stays in the
+  database), cannot see student Gmails. One manager may own several
+  hostels; one hostel has exactly one manager. A suspended manager's
+  sessions die at once; their listings stay visible but are marked
+  "manager suspended — contact the site admin", and the manager cannot
+  edit until reinstated.
+- **Student** (Gmail + password, active right after registering):
+  one review per hostel (rating + categories + text + up to 3
+  photos), edit it while pending, delete it. Cannot review without
+  logging in, cannot review the same hostel twice, cannot approve
+  anything, cannot see other students' Gmails.
+- **Public (logged out)**: search, filters, calculator, compare,
+  listing detail (fees, map, photos, approved reviews, contact),
+  reference ranges. Cannot submit, review, or upload anything.
+
+Manager accounts start **pending** and cannot log in until the master
+approves them. Legacy listings (the 9 seed rows) have no owner; only
+the master can assign one to a manager — there is no claim button and
+no auto-claim.
 
 ## How verification works (the honesty model)
 
@@ -11,10 +49,11 @@ Every listing has exactly one status, enforced server-side:
 - **VERIFIED** — an admin confirmed it and recorded a source note.
   Nothing is ever shown as verified without a source note (the API
   returns 400 if the note is empty). VERIFIED rows also carry a
-  last-verified date.
-- **LISTED** — a community-submitted claim, unverified. It is always
-  labelled "LISTED — unverified community claim" and is never counted
-  as verified.
+  last-verified date. A manager editing their own hostel never
+  verifies it — VERIFIED stays master-only.
+- **LISTED** — a community-submitted or manager-submitted claim,
+  unverified. It is always labelled "LISTED — unverified community
+  claim" and is never counted as verified.
 - **EXAMPLE** — demo listings only (generic names like "Example Boys
   Hostel"). They are excluded from default search and from ALL counts,
   and appear only when the user ticks "show examples".
@@ -24,9 +63,116 @@ from `/admin` with the master code.
 
 ## Price history
 
-Every rent or mess change (admin edit only) writes a history row
-(old → new + date). Prices are never overwritten silently; the listing
-detail view shows the full history.
+Every rent or mess change (admin edit or manager edit) writes a
+history row (old → new + date), including per-room-type rents
+(`room_types:<room>`) and every fee field. Prices are never
+overwritten silently; the listing detail view shows the full history.
+
+## Fees, amenities, rental period (the "Not available" rule)
+
+Every charge the manager has not set shows as **"Not available"** —
+never a guessed number. Each amenity (WiFi, mess, laundry, AC,
+generator, geyser, parking, CCTV, security guard, attached bath,
+fridge, TV lounge, library, mineral water, daily cleaning, kitchen
+access, gym) is **included**, **charged extra** (with a price), or
+**not available**. When a manager does not fill in a rental period,
+the listing shows **"Rental period not stated"**. Seats are shown
+only when the manager states them — a number is never invented.
+Mess status is active, not available, or seasonal; "No mess facility
+currently active" is a real, showable state.
+
+## Photos (manager uploads + review photos)
+
+- Managers upload JPG, PNG or WebP photos for their own hostels (max
+  5 MB each, 8 photos per hostel, 20 uploads per day). Files are
+  checked by their **magic bytes**, not just the file extension, and
+  are stored under a random name (`photo-<32 hex chars>.jpg/png/webp`)
+  — never the upload name.
+- Manager photos show immediately (approved on upload); the master
+  can remove any photo. Review photos (up to 3 per review) show only
+  when the review is approved; if a review is rejected after approval,
+  its photos stop being public too.
+- Pending photos are never public — only their owner (or the
+  hostel's manager, for review photos) can see them.
+- **Storage is not permanent:** photos live under `UPLOADS_DIR`
+  (default `uploads/` next to the server, `/tmp/hostel-uploads` on
+  SnapDeploy). The live host's container disk is lost on redeploy, so
+  uploaded photos disappear when the site is redeployed — keep your
+  originals. Uploaded files are never committed to the repo.
+
+## Map (no API key)
+
+No Google Maps API key is used or needed. A manager pastes a Google
+Maps **share or embed link**; the server validates it (host must be
+`google.com` / `maps.google.com`, path must be a Maps embed/share
+URL) and renders the no-key embed. Any other URL is rejected — no
+arbitrary iframes. Without a saved link, the page embeds a map search
+for the street address. Distances are the hostel's own stated text,
+labelled "as stated by the hostel" — never computed, never invented.
+
+## Reviews (the honesty model)
+
+- A student submits a review → **pending**, visible only to the
+  student, the hostel's manager, and the master. It is invisible to
+  the public and does not count in the average.
+- The manager **approves** it (public immediately) or **rejects** it
+  with a **required reason** from a published list (spam / abusive
+  language / personal data / off-topic / fake or staged) plus an
+  optional note. A rejected review is **never deleted**: it stays in
+  the database, visible to the master, and the listing page shows
+  honestly how many reviews were not published ("2 reviews were not
+  published after the manager's check").
+- The **master can overturn** any decision (approve a rejected review
+  or hide an approved one) with a reason; the audit records it. The
+  master can also remove a manager's public reply.
+- The average rating counts **approved reviews only**, with the count
+  shown ("4.2 ★ from 6 student reviews"). Never a manager-set score.
+- Every review carries the label: **"Student review — the site has
+  not verified this student lived here."** There is no "verified
+  resident" badge yet — v1 must not claim verification it cannot
+  check.
+- Abuse guards: one review per student per hostel (edit instead of a
+  second one), 5 reviews/day per student, text ≤ 2000 chars, URLs are
+  stripped from review text, phone numbers and CNIC numbers in review
+  text are rejected.
+- A student's Gmail is **never shown publicly** — reviews show a
+  display name only. A manager's phone number **is shown publicly**
+  (it is the booking contact) and the manager form says so plainly.
+
+## Security (what is enforced)
+
+- Passwords: scrypt only (per-account salt), constant-time verify.
+  No password, session token, or Gmail is ever written to a log.
+- Sessions: random 32-byte token, HMAC-SHA256 hash stored in the DB,
+  24-hour expiry, HttpOnly `SameSite=Lax` cookie. Logout, suspend,
+  reject, and password reset all kill sessions at once.
+- Login: 5 failed attempts → 15-minute lock (account + IP), generic
+  "invalid Gmail or password" error on every failure (never says
+  whether the account exists), 429 on abuse. Registration is limited
+  to 3/hour per IP.
+- Every manager/student endpoint re-checks ownership server-side; a
+  guessed foreign id returns 403 (listings, photos, reviews, replies
+  — all covered by tests).
+- Uploads: magic bytes + extension + 5 MB + count caps + random
+  names + path guard + `nosniff`; no file is ever served as HTML.
+- XSS: every user string is escaped on render (listing names, review
+  text, replies, captions, rules, menus) — including the old
+  `app.js` / `admin.js` pages.
+- CSRF: `SameSite=Lax` cookies + an Origin check on all
+  cookie-authenticated POSTs.
+- Input validation on every boundary: enums, ranges, length caps,
+  Pakistani phone format (03XX-XXXXXXX), Gmail format; unknown fields
+  are rejected with 400.
+- Security headers on every response: `X-Content-Type-Options:
+  nosniff`, `Referrer-Policy: no-referrer-when-downgrade`,
+  `X-Frame-Options: SAMEORIGIN`.
+- `ADMIN_CODE` is **fail-closed**: the server exits with a FATAL
+  message unless a private code is set. There is no default code —
+  the old public demo value is dead and appears nowhere in the code.
+- Audit rows are written for: manager approve/reject/suspend/
+  reinstate, listing verify/hide/restore/create/update/assign,
+  review submit/edit/delete/approve/reject/overturn/reply,
+  photo upload/delete, password change/reset.
 
 ## Seed data (what is real, what is not)
 
@@ -59,19 +205,39 @@ detail view shows the full history.
 - Compare up to 3 listings side by side.
 - Facilities checkboxes (WiFi, laundry, security, generator,
   attached bath) + meals per day.
+- Listing detail page (`/hostel?id=`): full fee breakdown, room
+  types, amenities, map embed, photo gallery, rental period +
+  availability, rules + timings, mess menu, approved reviews with
+  manager replies, price history, and a "Write a review" form for
+  logged-in students.
+- Manager portal (`/manager`): "My hostels", create/edit form with
+  every fee field and amenity, photo upload, reviews queue (pending
+  first). Login portal (`/login`): "Log in as Manager" / "Log in as
+  Student" + registration.
+- Master view (`/admin`): verify / hide / price edit, pending
+  managers, rejected reviews with overturn, audit trail.
 
 ## Run
 
 ```
 node server.js            # port 3034 (env PORT)
-DB_FILE=/tmp/hostel.sqlite ADMIN_CODE=your-code node server.js
-node test.js              # 25 tests on a throwaway DB
+DB_FILE=/tmp/hostel.sqlite UPLOADS_DIR=/tmp/hostel-uploads ADMIN_CODE=your-private-code node server.js
+node test.js              # 304 tests on a throwaway DB
 ```
 
-Admin code default is `hostel-admin` — a documented demo default.
-Set a private `ADMIN_CODE` before real public use. On hosting
-(e.g. SnapDeploy) set `DB_FILE=/tmp/hostel.sqlite` because the app
-directory may be unwritable, and `NODE_VERSION=24`.
+`ADMIN_CODE` is **required** — the server exits with a FATAL message
+unless a private code is set, and there is no default. Never put a
+real code in code, README, or logs. `DB_FILE` defaults to
+`data/hostel.sqlite`; `UPLOADS_DIR` defaults to `uploads/` next to
+the server. On hosting (e.g. SnapDeploy) set
+`DB_FILE=/tmp/hostel.sqlite` because the app directory may be
+unwritable, `UPLOADS_DIR=/tmp/hostel-uploads`, and `NODE_VERSION=24`.
+On first run against an old database, the server creates the
+`users` / `sessions` / `audit` / `photos` / `reviews` tables and all
+34 new listing columns automatically; the 9 seed rows are left
+unchanged. `SESSION_SECRET` is optional — set it on deploy so
+sessions survive restarts; without it a random secret is generated at
+startup and all sessions end when the server restarts.
 
 ## Honest limits (also in the site footer)
 
@@ -80,4 +246,6 @@ directory may be unwritable, and `NODE_VERSION=24`.
 - Ranges are market ranges, not one hostel's rent.
 - Semester prices are shown with a monthly-equivalent estimate,
   labelled as such — the semester figure is the real one.
+- Reviews are student reports, not verified stays.
+- Uploaded photos are lost when the site is redeployed.
 - No booking or payment happens in the app.

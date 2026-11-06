@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manager portal — Hostel + Mess Index</title>
+<link rel="stylesheet" href="/styles.css"></head>
+<body>
+<header><h1>Manager portal — Hostel + Mess Index</h1>
+<p class="sub">Run your own hostels: fees, map, contact, rental period.</p></header>
+<main>
+<section class="card" id="accountCard"><h2>Your account</h2><p id="accountStatus">Checking…</p>
+<p id="notLoggedIn" hidden>Please <a href="/login">log in as a manager</a> first.</p>
+<button id="logoutBtn" hidden>Log out</button></section>
+
+<div id="portal" hidden>
+<section class="card"><h2>My hostels</h2>
+<p id="myCount"></p><div id="myList"></div>
+<button id="newBtn">Add a new hostel</button></section>
+
+<section class="card"><h2>Reviews on your hostels</h2>
+<p>Pending reviews first. Approve or reject each one — a rejection needs a reason from the fixed list (spam, abusive language, personal data, off-topic, fake or staged). Rejected reviews are not deleted; the master can see them and overturn your decision. The listing page shows honestly how many reviews were not published.</p>
+<button id="loadReviewsBtn">Load reviews</button><p id="reviewsMsg"></p>
+<div id="reviewsList"></div></section>
+
+<section class="card" id="formCard" hidden><h2 id="formTitle">Add a hostel</h2>
+<p>New hostels start as <b>LISTED</b> (unverified). Editing your hostel never makes it verified — only the master can verify it, with a source.</p>
+<p>Photos: each hostel in “My hostels” above has its own photo uploader — JPG, PNG or WebP, max 5 MB each, up to 8 photos per hostel. Photos show on your listing as soon as you upload them.</p>
+<p>Photos are stored on this server and are lost if the site is redeployed — keep your originals.</p>
+<form id="hostelForm">
+<h3>Basic details</h3>
+<label>Name <input name="name" required></label>
+<label>City <select name="city" id="fCity" required></select></label>
+<label>Area <select name="area" id="fArea" required></select></label>
+<label>Near university <input name="near_university" placeholder="e.g. UET Peshawar"></label>
+<label>Type <select name="type" required><option value="boys">Boys</option><option value="girls">Girls</option><option value="family">Family</option></select></label>
+<label>Headline room <select name="room" required><option value="single">Single</option><option value="double">Double</option><option value="triple">Triple</option><option value="dorm">Dormitory</option></select></label>
+<label>Headline rent (PKR) <input name="rent_pkr" type="number" required></label>
+<label>Price basis <select name="price_basis"><option value="month">Per month</option><option value="semester">Per semester</option></select></label>
+<label class="chk"><input name="mess_included" type="checkbox"> Mess included in rent</label>
+<label>Mess price (PKR, if separate) <input name="mess_pkr" type="number"></label>
+<label>Meals per day <input name="meals_per_day" type="number"></label>
+<div id="facChecks"></div>
+<label>Source <input name="source" placeholder="e.g. hostel website"></label>
+
+<h3>Contact — shown publicly</h3>
+<p><b>Warning: the phone number you enter here will be shown publicly on your listing so students can call or WhatsApp you for booking.</b> Only put a number you are happy to share with everyone.</p>
+<label>Contact Gmail <input name="contact_gmail" type="email" placeholder="hostel@example.com"></label>
+<label>Contact phone (public) <input name="contact_phone" placeholder="03001234567"></label>
+<label>WhatsApp number (if different) <input name="whatsapp" placeholder="03001234567"></label>
+
+<h3>Location</h3>
+<label>Full street address <input name="address" placeholder="e.g. House 12, Street 3, University Road"></label>
+<label>Google Maps link (share or embed link from google.com/maps) <input name="maps_url" placeholder="https://www.google.com/maps/…"></label>
+<label>Latitude <input name="maps_lat" type="number" step="any"></label>
+<label>Longitude <input name="maps_lng" type="number" step="any"></label>
+<label>Plus Code <input name="plus_code" placeholder="e.g. C75C+VWV"></label>
+<label>Distance text (as stated by you — e.g. 1.5 km from UET Peshawar) <input name="distance_text"></label>
+
+<h3>Fees — leave a charge empty and it shows as “Not available”</h3>
+<div id="feeFields"></div>
+<h4>Other charges</h4>
+<div id="otherCharges"></div>
+
+<h3>Room types — one row per room type you offer</h3>
+<div id="roomTypes"></div>
+
+<h3>Amenities — included, charged extra, or not available</h3>
+<div id="amenityFields"></div>
+
+<h3>Rules &amp; timings</h3>
+<label>Rules (one per line) <textarea name="rules" rows="4" placeholder="No guests after 10 PM&#10;No smoking"></textarea></label>
+<label>Gate opens (HH:MM) <input name="gate_open" placeholder="06:00"></label>
+<label>Gate closes (HH:MM) <input name="gate_close" placeholder="22:00"></label>
+<label>Visit hours <input name="visit_hours" placeholder="10 AM – 8 PM"></label>
+
+<h3>Rental period &amp; availability</h3>
+<label>Rental period <select name="rental_period" id="fRental"><option value="">Not stated</option></select></label>
+<label>Available from (YYYY-MM-DD) <input name="available_from" placeholder="2026-11-06"></label>
+<label>Available until (YYYY-MM-DD) <input name="available_until" placeholder="2027-06-30"></label>
+<label>Minimum stay <input name="min_stay" placeholder="e.g. 1 semester"></label>
+<label>Deposit refund note <input name="deposit_refund_note" placeholder="e.g. refundable with 2 weeks' notice"></label>
+<label>Season note <input name="season_note" placeholder="e.g. rooms open one week before the academic year"></label>
+<label>Total seats <input name="seats_total" type="number"></label>
+<label>Seats available <input name="seats_available" type="number"></label>
+
+<h3>Mess</h3>
+<label>Mess status <select name="mess_status"><option value="">Not stated</option><option value="active">Active</option><option value="not_available">Not available</option><option value="seasonal">Seasonal</option></select></label>
+<label>Mess menu (weekly menu) <textarea name="mess_menu" rows="4"></textarea></label>
+
+<button>Save hostel</button>
+<button type="button" id="cancelBtn">Cancel</button>
+<button type="button" id="hideBtn" hidden>Hide this listing</button>
+</form><p id="formMsg"></p></section>
+</div>
+<p><a href="/">← Back to search</a> · <a href="/login">Login page</a></p>
+</main>
+<script src="/manager.js"></script>
+</body></html>

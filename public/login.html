@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log in — Hostel + Mess Index</title>
+<link rel="stylesheet" href="/styles.css"></head>
+<body>
+<header><h1>Log in — Hostel + Mess Index</h1>
+<p class="sub">Managers run their own hostels. Students write reviews.</p></header>
+<main>
+<section class="card"><h2>Log in as Manager</h2>
+<p>For hostel owners and wardens. Your account must be approved by the master before you can log in.</p>
+<form id="mgrLogin">
+<label>Gmail <input name="gmail" type="email" required></label>
+<label>Password <input name="password" type="password" required></label>
+<button>Log in as Manager</button>
+</form><p id="mgrMsg"></p>
+</section>
+
+<section class="card"><h2>Log in as Student</h2>
+<p>For students who want to write reviews. Student accounts work right after registering.</p>
+<form id="stuLogin">
+<label>Gmail <input name="gmail" type="email" required></label>
+<label>Password <input name="password" type="password" required></label>
+<button>Log in as Student</button>
+</form><p id="stuMsg"></p>
+</section>
+
+<section class="card"><h2>New here? Register</h2>
+<p>One account per Gmail. Managers: your account starts as <b>waiting for master approval</b> — you can log in after the master approves it. Students: your account works right away.</p>
+<form id="registerForm">
+<label>Gmail <input name="gmail" type="email" required></label>
+<label>Password (at least 8 characters) <input name="password" type="password" required></label>
+<label>Display name <input name="display_name" required></label>
+<label>Phone (optional, Pakistani mobile, 03XX-XXXXXXX) <input name="phone" placeholder="03001234567"></label>
+<label>I am a <select name="role"><option value="manager">Hostel manager</option><option value="student">Student</option></select></label>
+<button>Register</button>
+</form><p id="regMsg"></p>
+</section>
+<p><a href="/">← Back to search</a></p>
+</main>
+<script src="/login.js"></script>
+</body></html>
