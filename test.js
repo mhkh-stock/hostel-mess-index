@@ -1,8 +1,9 @@
 // Tests for Hostel + Mess Index. Runs the server on a throwaway DB,
 // asserts the honesty rules + the Phase 1 auth/roles rules + the Phase 2
 // manager portal / listing-fields rules + the Phase 3 photo rules + the
-// Phase 4 student-review rules + the Phase 5 final-review fixes, then
-// kills the server and deletes the DB.
+// Phase 4 student-review rules + the Phase 5 final-review fixes + the
+// 3D-dashboard Phase 1 shell + the Phase 2 3D scene + the Phase 3 stat
+// cards + Ask Hostel AI panel, then kills the server and deletes the DB.
 'use strict';
 const { spawn } = require('node:child_process');
 const httpMod = require('node:http');
@@ -1104,6 +1105,657 @@ async function main() {
     const up21 = await uploadPhoto(mgrDaily.cookie, { listing_id: String(dailyHostels[2]), kind: 'hostel', caption: '' },
       { field: 'photo', filename: 'd21.jpg', contentType: 'image/jpeg', data: JPEG });
     ok('21st upload in a day is 429', up21.status === 429, up21.status);
+
+    // 15. Phase 1 shell: design tokens in public/styles.css must pass
+    // WCAG AA 4.5:1 for every text/background pair the shell uses, and
+    // the shell structure must be present in index.html. Pure file
+    // checks — no server needed. Tokens are parsed from the real CSS,
+    // not copied here, so a token change that breaks contrast fails.
+    const css = fs.readFileSync(path.join(__dirname, 'public', 'styles.css'), 'utf8');
+    const rootBlock = (css.match(/:root\s*\{([\s\S]*?)\}/) || [])[1] || '';
+    const tokens = {};
+    for (const m of rootBlock.matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) tokens[m[1]] = m[2].trim();
+    const chan = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const lum = rgb => 0.2126 * chan(rgb[0]) + 0.7152 * chan(rgb[1]) + 0.0722 * chan(rgb[2]);
+    const parseColor = s => {
+      if (!s) return null;
+      const hex = s.match(/^#([0-9a-f]{6})$/i);
+      if (hex) return [0, 2, 4].map(i => parseInt(hex[1].substr(i, 2), 16));
+      const rgba = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+      if (rgba) return [+rgba[1], +rgba[2], +rgba[3], rgba[4] === undefined ? 1 : +rgba[4]];
+      return null;
+    };
+    const ratio = (fg, bg) => { const a = lum(fg), b = lum(bg); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+    const blendOver = (fg, bg) => { const a = fg[3] === undefined ? 1 : fg[3]; return fg.slice(0, 3).map((v, i) => Math.round(v * a + bg[i] * (1 - a))); };
+    const need = ['bg', 'surface', 'text', 'text-muted', 'accent-text', 'accent-btn', 'glass'];
+    const parsed = {};
+    for (const n of need) parsed[n] = parseColor(tokens[n]);
+    const tokensOk = need.every(n => !!parsed[n]);
+    ok('contrast tokens all parse as colours', tokensOk, tokens);
+    if (tokensOk) {
+      const cr = (fg, bg, label) => ok('contrast ' + label + ' >= 4.5:1', ratio(fg, bg) >= 4.5, ratio(fg, bg).toFixed(2));
+      cr(parsed['text'], parsed['bg'], 'text on app background');
+      cr(parsed['text-muted'], parsed['bg'], 'muted text on app background');
+      cr(parsed['text'], parsed['surface'], 'text on white card');
+      cr(parsed['text-muted'], parsed['surface'], 'muted text on white card');
+      cr(parsed['accent-text'], parsed['bg'], 'orange text on app background');
+      cr(parsed['accent-text'], parsed['surface'], 'orange text on white card');
+      cr([255, 255, 255], parsed['accent-btn'], 'white text on orange button');
+      cr(parsed['text'], blendOver(parsed['glass'], parsed['bg']), 'text on frosted glass card');
+    }
+    const indexHtml = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+    ok('index has the shell (topnav + icon rail + greeting + scene zoom)',
+      indexHtml.includes('class="topnav"') && indexHtml.includes('class="rail"') &&
+      indexHtml.includes('id="greetingTitle"') && indexHtml.includes('id="zoomIn"') &&
+      indexHtml.includes('id="sceneInner"'), 'shell ids missing');
+    ok('glass cards lift on hover like the reel', css.includes('translateY(-5px)'), 'no -5px lift in CSS');
+    ok('index shell adds no external asset (no img, no http URL, no CDN)',
+      !indexHtml.includes('<img') && !indexHtml.includes('http://') && !indexHtml.includes('https://'),
+      'external reference found in index.html');
+
+    // 16. Phase 2 3D scene: the map is built from real /api/listings data
+    // only — one block per VERIFIED/LISTED hostel, EXAMPLE rows never in
+    // the scene, wall chart from real rents, student labels only from
+    // approved reviews, honest empty state. Pure functions are tested
+    // directly (the BEGIN/END SCENE section is extracted from app.js
+    // and evaluated standalone in Node); live data is tested
+    // against the running server; files are checked for the scene
+    // structure, the <a> blocks and the no-raw-HTML rule.
+    // The scene lives in app.js (server.js serves static files from a
+    // fixed per-file list and this phase does not change it), so the pure
+    // scene functions are tested by extracting the BEGIN/END SCENE
+    // section from app.js and evaluating it standalone in Node.
+    const appJsFile = fs.readFileSync(path.join(__dirname, 'public', 'app.js'), 'utf8');
+    const sceneStart = appJsFile.indexOf('// ---- BEGIN SCENE');
+    const sceneEnd = appJsFile.indexOf('// ---- END SCENE ----');
+    const sceneSrc = appJsFile.slice(sceneStart, sceneEnd);
+    const sceneMod = { exports: {} };
+    new Function('module', 'window', 'document', sceneSrc)(sceneMod, undefined, undefined);
+    const Scene = sceneMod.exports;
+    const fakeRows = [
+      { id: 1, status: 'VERIFIED' }, { id: 2, status: 'LISTED' },
+      { id: 3, status: 'EXAMPLE' }, { id: 4, status: 'LISTED' },
+      { id: 5, status: 'HIDDEN' }, null, undefined,
+    ];
+    ok('sceneListings keeps VERIFIED + LISTED only (EXAMPLE never in the scene)',
+      Scene.sceneListings(fakeRows).map(l => l.id).join(',') === '1,2,4', Scene.sceneListings(fakeRows));
+    const liveAll = await get('/api/listings');
+    ok('scene block count equals the listed count from the API',
+      Scene.sceneListings(liveAll.listings).length === liveAll.counts.total,
+      { blocks: Scene.sceneListings(liveAll.listings).length, total: liveAll.counts.total });
+    const liveWithEx = await get('/api/listings?show_examples=1');
+    ok('EXAMPLE rows are excluded from the scene even when the API returns them',
+      Scene.sceneListings(liveWithEx.listings).length === liveWithEx.counts.total &&
+      liveWithEx.listings.some(l => l.status === 'EXAMPLE'), liveWithEx.listings.length);
+    ok('every block routes to its hostel detail page (/hostel?id=N)',
+      liveAll.listings.every(l => Scene.detailUrl(l) === '/hostel?id=' + l.id),
+      liveAll.listings.map(Scene.detailUrl));
+    const chart = Scene.chartData(liveAll.listings);
+    ok('wall-chart values equal the real monthly rents from /api/listings',
+      chart.rows.length === liveAll.counts.total &&
+      chart.rows.every(r => {
+        const l = liveAll.listings.find(x => x.id === r.id);
+        return l && r.monthlyRent === l.monthly_rent_equivalent;
+      }), chart.rows.map(r => r.monthlyRent));
+    ok('wall-chart bars scale to the max rent (tallest = 56px, zero = 0)',
+      chart.max === Math.max(...chart.rows.map(r => r.monthlyRent)) &&
+      Scene.barHeight(chart.max, chart.max) === 56 &&
+      Scene.barHeight(0, chart.max) === 0 &&
+      Scene.barHeight(chart.max, chart.max) >= Scene.barHeight(Math.min(...chart.rows.map(r => r.monthlyRent)), chart.max),
+      { max: chart.max });
+    const uetDorm = liveAll.listings.find(l => l.name.includes('Dormitory'));
+    const uetCub = liveAll.listings.find(l => l.name.includes('Cubicle'));
+    ok('semester hostels chart as the monthly equivalent (÷6), labelled so',
+      uetDorm && uetCub &&
+      Scene.monthlyRent(uetDorm) === Math.round(uetDorm.rent_pkr / 6) &&
+      Scene.monthlyRent(uetCub) === Math.round(uetCub.rent_pkr / 6) &&
+      Scene.rentLabel(uetDorm) === 'Rs 11,644 /semester' && chart.hasSemester === true,
+      { dorm: uetDorm && Scene.monthlyRent(uetDorm), cub: uetCub && Scene.monthlyRent(uetCub) });
+    ok('student labels come only from approved-review data',
+      Scene.studentLabel([]) === null && Scene.studentLabel(null) === null &&
+      Scene.studentLabel([{ reviewer_name: 'Student' }]) === null &&
+      Scene.studentLabel([{ reviewer_name: 'Ayesha Khan' }]) === 'Ayesha Khan',
+      'label rule broken');
+    const seedRev1 = await pubReviews(1);
+    ok('a hostel with no approved reviews gets no name label',
+      Scene.studentLabel(seedRev1.reviews) === null, seedRev1.reviews);
+    // Fresh approved review (hostA's reviews were hidden / re-pended /
+    // deleted by the section-13 flow, so build one here instead).
+    const sceneMgr = await makeManager('p6-scene-mgr@example.com');
+    const sceneHostel = await mgrPost(sceneMgr.cookie, { ...fullListing, name: 'Scene Label Hostel' });
+    const sceneStu = await makeStudent('p6-scene-stu@example.com');
+    const sceneRev = await submitReview(sceneStu.cookie, { listing_id: sceneHostel.d.listing.id, rating: 5, body: 'Clean rooms.' });
+    const sceneApprove = await mgrDecide(sceneMgr.cookie, { review_id: sceneRev.d.review.id, decision: 'approve' });
+    const scenePub = await pubReviews(sceneHostel.d.listing.id);
+    ok('a label, when present, matches a real approved review author',
+      sceneHostel.status === 201 && sceneRev.status === 201 && sceneApprove.status === 200 &&
+      scenePub.reviews.length === 1 && Scene.studentLabel(scenePub.reviews) === 'p6-scene-stu',
+      scenePub.reviews);
+    ok('scene empty state when no hostels are listed',
+      Scene.sceneListings([]).length === 0 && Scene.layout([]).count === 0 &&
+      sceneSrc.includes('No hostels listed yet') &&
+      sceneSrc.includes('The hostel map could not be loaded'),
+      'empty-state strings missing from the scene section');
+    ok('index loads the scene from app.js and the Phase 1 placeholder is gone',
+      appJsFile.includes('// ---- BEGIN SCENE') && appJsFile.includes('// ---- END SCENE ----') &&
+      appJsFile.includes('Scene.loadScene()') &&
+      !indexHtml.includes('scene-placeholder') && !indexHtml.includes('Coming in Phase 2'),
+      'scene section missing from app.js or placeholder still in index.html');
+    ok('scene CSS has the isometric floor, wall screen and room blocks',
+      css.includes('.scene3d') && css.includes('.iso-floor') && css.includes('.room-block') &&
+      css.includes('rotateX(60deg)') && css.includes('rotateZ(-45deg)') &&
+      css.includes('.wall-screen') && css.includes('.room-block:focus-visible'),
+      'scene classes/transforms missing from styles.css');
+    ok('scene blocks are real links with an accessible name (no div click targets)',
+      sceneSrc.includes("el('a', 'room-block'") && sceneSrc.includes('aria-label') &&
+      sceneSrc.includes('detailUrl(l)'), 'blocks are not <a> elements');
+    ok('scene renders user strings with textContent only (no raw HTML, no images, no external URLs)',
+      !sceneSrc.includes('.innerHTML') && !sceneSrc.includes('<img') &&
+      !sceneSrc.includes('http://') && !sceneSrc.includes('https://'),
+      'raw HTML or external reference in the scene section');
+    const six = Array.from({ length: 6 }, (_, i) => ({ id: i + 1, status: 'LISTED' }));
+    const lay6 = Scene.layout(six);
+    ok('6 hostels lay out as 2 rows of 3, every block inside the floor',
+      lay6.rows === 2 && lay6.blocks.length === 6 && lay6.floorH === 425 &&
+      lay6.blocks.every(b => b.x + 170 <= 640 && b.y + 105 <= lay6.floorH - 140),
+      lay6);
+    ok('a 7th hostel adds a third row instead of being dropped',
+      Scene.layout([...six, { id: 7, status: 'VERIFIED' }]).rows === 3 &&
+      Scene.layout([...six, { id: 7, status: 'VERIFIED' }]).count === 7,
+      '7th hostel not laid out');
+    ok('zoom control still wires to #sceneInner after the scene lands',
+      indexHtml.includes('id="zoomIn"') && indexHtml.includes('id="zoomOut"') &&
+      indexHtml.includes('id="zoomLevel"') &&
+      appJsFile.includes("$('sceneInner').style.transform = 'scale('"),
+      'zoom wiring changed');
+
+    // 17. Phase 3 stat cards + Ask Hostel AI panel: every number is
+    // computed from the same live API data in-test (never hardcoded);
+    // each chip performs its real action on the list + the scene; the
+    // panel carries the honest line and no fake-AI text; empty states
+    // stay honest. Pure functions are tested directly (the BEGIN/END
+    // STATS section is extracted from app.js and evaluated standalone
+    // in Node, like the scene section in §16); live data is tested
+    // against the running server.
+    const statsStart = appJsFile.indexOf('// ---- BEGIN STATS');
+    const statsEnd = appJsFile.indexOf('// ---- END STATS ----');
+    const statsSrc = appJsFile.slice(statsStart, statsEnd);
+    const statsMod = { exports: {} };
+    new Function('module', 'window', 'document', statsSrc)(statsMod, undefined, undefined);
+    const Stats = statsMod.exports;
+    // Live numbers: fetch the same API data the page uses and compute
+    // every stat independently in-test, then compare.
+    const liveAll3 = await get('/api/listings');
+    const liveListed3 = Stats.statListings(liveAll3.listings);
+    const liveReviewsById = {};
+    await Promise.all(liveListed3.map(async l => {
+      const r = await pubReviews(l.id);
+      liveReviewsById[l.id] = r.reviews || [];
+    }));
+    const liveStats = Stats.computeStats(liveAll3.listings, liveReviewsById);
+    const expHostels = liveAll3.counts.total;
+    const expRooms = liveListed3.reduce((s, l) =>
+      s + (Array.isArray(l.room_types) ? l.room_types.reduce((a, t) =>
+        a + (typeof t.seats === 'number' && t.seats > 0 ? t.seats : 0), 0) : 0), 0);
+    const expReviews = Object.values(liveReviewsById).reduce((s, rs) => s + rs.length, 0);
+    const expCheapest = Math.min(...liveListed3.map(l => l.monthly_rent_equivalent));
+    ok('stat cards equal the numbers computed from the same live API data (hostels, rooms, reviews, cheapest)',
+      liveStats.hostels === expHostels && liveStats.rooms === expRooms &&
+      liveStats.reviews === expReviews && liveStats.cheapest === expCheapest,
+      { liveStats, expHostels, expRooms, expReviews, expCheapest });
+    const seatRows = [
+      { id: 1, status: 'VERIFIED', rent_pkr: 10000, price_basis: 'month',
+        room_types: [{ room: 'single', seats: 4 }, { room: 'double', seats: null }] },
+      { id: 2, status: 'LISTED', rent_pkr: 12000, price_basis: 'month', room_types: [] },
+      { id: 3, status: 'LISTED', rent_pkr: 15000, price_basis: 'month' },
+      { id: 4, status: 'EXAMPLE', rent_pkr: 1000, price_basis: 'month',
+        room_types: [{ room: 'single', seats: 99 }] },
+    ];
+    const seatStats = Stats.computeStats(seatRows, {});
+    const noSeatStats = Stats.computeStats(
+      [{ id: 9, status: 'LISTED', rent_pkr: 10000, price_basis: 'month',
+        room_types: [{ room: 'single', seats: null }] }], {});
+    ok('rooms count uses the stated-only rule (unstated seats add 0, EXAMPLE never counts)',
+      seatStats.rooms === 4 && seatStats.roomsStated === true && noSeatStats.rooms === 0 &&
+      noSeatStats.roomsStated === false, { seatStats, noSeatStats });
+    const cheapRows = [
+      { id: 1, status: 'VERIFIED', rent_pkr: 11644, price_basis: 'semester' },
+      { id: 2, status: 'LISTED', rent_pkr: 9990, price_basis: 'month' },
+      { id: 3, status: 'LISTED', rent_pkr: 30000, price_basis: 'semester' },
+    ];
+    const cheapStats = Stats.computeStats(cheapRows, {});
+    ok('cheapest rent is the monthly equivalent (semester ÷6) and labels the basis',
+      cheapStats.cheapest === Math.round(11644 / 6) && cheapStats.cheapestSemester === true &&
+      Stats.statMonthlyRent({ price_basis: 'semester', rent_pkr: 11644, monthly_rent_equivalent: 1941 }) === 1941,
+      cheapStats);
+    const emptyStats = Stats.computeStats([], {});
+    ok('stats show the honest empty state when no hostels are listed',
+      emptyStats.hostels === 0 && emptyStats.rooms === 0 && emptyStats.reviews === 0 &&
+      emptyStats.cheapest === null &&
+      statsSrc.includes('No hostels listed yet') && statsSrc.includes("'—'"),
+      emptyStats);
+    const vacRows = [
+      { id: 1, status: 'LISTED', seats_available: 5 },
+      { id: 2, status: 'LISTED', seats_available: 0 },
+      { id: 3, status: 'LISTED', seats_available: null },
+      { id: 4, status: 'LISTED' },
+      { id: 5, status: 'VERIFIED', seats_available: 2 },
+    ];
+    ok('vacant chip shows only hostels with a stated seats_available above zero',
+      Stats.applyQuickFilter(vacRows, 'vacant').map(l => l.id).join(',') === '1,5',
+      Stats.applyQuickFilter(vacRows, 'vacant'));
+    ok('vacant filter on live data returns only seats_available > 0 rows',
+      Stats.applyQuickFilter(liveAll3.listings, 'vacant')
+        .every(l => typeof l.seats_available === 'number' && l.seats_available > 0),
+      Stats.applyQuickFilter(liveAll3.listings, 'vacant').map(l => l.id));
+    const verRows = [
+      { id: 1, status: 'VERIFIED' }, { id: 2, status: 'LISTED' },
+      { id: 3, status: 'EXAMPLE' }, { id: 4, status: 'VERIFIED' },
+    ];
+    ok('verified-only chip shows only VERIFIED hostels (live count matches the API)',
+      Stats.applyQuickFilter(verRows, 'verified').map(l => l.id).join(',') === '1,4' &&
+      Stats.applyQuickFilter(liveAll3.listings, 'verified').length === liveAll3.counts.verified,
+      Stats.applyQuickFilter(liveAll3.listings, 'verified').map(l => l.id));
+    const sortRows = [
+      { id: 1, status: 'LISTED', rent_pkr: 12000, price_basis: 'month', monthly_rent_equivalent: 12000 },
+      { id: 2, status: 'LISTED', rent_pkr: 30000, price_basis: 'semester', monthly_rent_equivalent: 5000 },
+      { id: 3, status: 'VERIFIED', rent_pkr: 11644, price_basis: 'semester', monthly_rent_equivalent: 1941 },
+    ];
+    const sortedLive = Stats.applyQuickFilter(liveAll3.listings, 'cheapest');
+    ok('cheapest chip sorts by monthly-equivalent rent ascending (semester ÷6)',
+      Stats.applyQuickFilter(sortRows, 'cheapest').map(l => l.id).join(',') === '3,2,1' &&
+      sortedLive.every((l, i) => i === 0 || l.monthly_rent_equivalent >= sortedLive[i - 1].monthly_rent_equivalent),
+      sortedLive.map(l => l.monthly_rent_equivalent));
+    const mgrAct = Stats.pendingReviewsAction('manager');
+    const stuAct = Stats.pendingReviewsAction('student');
+    const outAct = Stats.pendingReviewsAction(null);
+    const mgrHtml = fs.readFileSync(path.join(__dirname, 'public', 'manager.html'), 'utf8');
+    ok('pending-reviews chip routes by role: manager opens the queue, others get the login message (no fake count)',
+      mgrAct.action === 'open-queue' && mgrAct.url === '/manager#reviews' &&
+      mgrHtml.includes('id="reviews"') &&
+      stuAct.action === 'login-message' && stuAct.url === '/login' &&
+      outAct.action === 'login-message' &&
+      stuAct.message.includes('Log in as a manager to see pending reviews'),
+      { mgrAct, stuAct, outAct });
+    ok('chip status messages say what happened in plain words',
+      Stats.quickFilterStatus(2, 'verified') === 'Showing 2 verified hostels.' &&
+      Stats.quickFilterStatus(1, 'vacant') === 'Showing 1 hostel with vacant rooms.' &&
+      Stats.quickFilterStatus(0, 'vacant').includes('never counted as vacant') &&
+      Stats.quickFilterStatus(3, 'cheapest') === 'Showing 3 hostels, cheapest first.' &&
+      Stats.quickFilterStatus(0, null) === 'Showing all hostels.',
+      Stats.quickFilterStatus(2, 'verified'));
+    const panelStart = indexHtml.indexOf('<aside class="ai-panel"');
+    const panelEnd = indexHtml.indexOf('</aside>', panelStart);
+    const panelHtml = indexHtml.slice(panelStart, panelEnd);
+    ok('panel carries the honest line and no fake-AI text',
+      panelHtml.includes('Shortcuts — no AI here yet. Each button filters the real list below.') &&
+      !/thinking|typing|AI is/i.test(panelHtml) && !/thinking|typing|AI is/i.test(statsSrc),
+      panelHtml.slice(0, 200));
+    ok('panel has all four chips, a close button, a status line, the login note and a Show-all reset',
+      panelHtml.includes('id="aiPanel"') && indexHtml.includes('id="askAiBtn"') &&
+      ['data-chip="pending"', 'data-chip="vacant"', 'data-chip="cheapest"', 'data-chip="verified"']
+        .every(s => panelHtml.includes(s)) &&
+      panelHtml.includes('id="aiClose"') && panelHtml.includes('id="aiStatus"') &&
+      panelHtml.includes('id="aiShowAll"') && panelHtml.includes('id="aiPendingMsg"') &&
+      panelHtml.includes('href="/login"') && panelHtml.includes('hidden'),
+      'panel structure incomplete');
+    ok('stat cards exist in the markup with real ids and the stated-only note',
+      indexHtml.includes('id="stats"') &&
+      ['statHostels', 'statRooms', 'statReviews', 'statCheapest']
+        .every(id => indexHtml.includes('id="' + id + '"')) &&
+      indexHtml.includes('seats stated only') && indexHtml.includes('glass-card stat-card'),
+      'stat card markup incomplete');
+    ok('chips use the same filter state as the list and the scene (no second filtering system)',
+      appJsFile.includes('applyQuickFilter(rows, qf)') &&
+      appJsFile.includes('applyQuickFilter(listed, qf)') &&
+      appJsFile.includes('getQuickFilter()') &&
+      sceneSrc.includes('No hostels match this filter'),
+      'quick-filter wiring missing');
+    ok('a successful community submission refreshes the list, the scene and the stats',
+      appJsFile.includes("if (typeof loadStats === 'function') loadStats();") &&
+      appJsFile.includes("if (typeof Scene !== 'undefined' && Scene.loadScene) Scene.loadScene();"),
+      'submit refresh wiring missing');
+    // Live delta: a new manager listing with stated room seats moves the
+    // Rooms stat by exactly that many, and shows under the vacant chip.
+    const beforeStats = Stats.computeStats((await get('/api/listings')).listings, {});
+    const p3Mgr = await makeManager('p3-stats-mgr@example.com');
+    const p3Hostel = await mgrPost(p3Mgr.cookie, { ...fullListing, name: 'P3 Stats Hostel',
+      room_types: [{ room: 'single', rent_pkr: 18000, seats: 3, mess_included: false, mess_pkr: 5000 },
+        { room: 'double', rent_pkr: 14000, seats: 5, mess_included: true, mess_pkr: null }],
+      seats_available: 4 });
+    const afterListings = await get('/api/listings');
+    const afterStats = Stats.computeStats(afterListings.listings, {});
+    ok('a manager listing with stated room seats moves the Rooms stat by exactly that many',
+      p3Hostel.status === 201 && afterStats.hostels === beforeStats.hostels + 1 &&
+      afterStats.rooms === beforeStats.rooms + 8,
+      { beforeStats, afterStats, p3Hostel: p3Hostel.status });
+    ok('a listing with stated vacant seats shows under the vacant chip (unstated never does)',
+      p3Hostel.status === 201 &&
+      Stats.applyQuickFilter(afterListings.listings, 'vacant')
+        .some(l => l.id === p3Hostel.d.listing.id) &&
+      Stats.applyQuickFilter(afterListings.listings, 'vacant')
+        .every(l => typeof l.seats_available === 'number' && l.seats_available > 0),
+      Stats.applyQuickFilter(afterListings.listings, 'vacant').map(l => l.id));
+    // Live delta: one approved review moves the Student reviews stat by one.
+    const p3Stu = await makeStudent('p3-stats-stu@example.com');
+    const p3Rev = await submitReview(p3Stu.cookie, { listing_id: p3Hostel.d.listing.id, rating: 5, body: 'Quiet rooms, good mess.' });
+    const p3Approve = await mgrDecide(p3Mgr.cookie, { review_id: p3Rev.d.review.id, decision: 'approve' });
+    const freshListings = await get('/api/listings');
+    const freshListed = Stats.statListings(freshListings.listings);
+    const freshReviewsById = {};
+    await Promise.all(freshListed.map(async l => {
+      const r = await pubReviews(l.id);
+      freshReviewsById[l.id] = r.reviews || [];
+    }));
+    const freshStats = Stats.computeStats(freshListings.listings, freshReviewsById);
+    ok('an approved review moves the Student reviews stat by exactly one',
+      p3Rev.status === 201 && p3Approve.status === 200 &&
+      freshStats.reviews === liveStats.reviews + 1,
+      { liveReviews: liveStats.reviews, freshReviews: freshStats.reviews });
+    ok('stat cards + panel CSS: 4-column grid, glass panel sliding in from the right, responsive',
+      css.includes('.stats') && css.includes('repeat(4,1fr)') &&
+      css.includes('.ai-panel') && css.includes('translate(120%,-50%)') &&
+      css.includes('.ai-panel.is-open') && css.includes('.stat-value') &&
+      css.includes('.stats{grid-template-columns:repeat(2,1fr)}') &&
+      css.includes('.stats{grid-template-columns:1fr}'),
+      'Phase 3 CSS missing');
+
+    // ---- 18. Phase 4 (3D restyle): the four remaining pages in the shell ----
+    // Served HTML for each page carries the same top pill nav + left icon
+    // rail as the home page (current page's icon highlighted), the same
+    // glass cards, and no external asset. Every v2 control is still
+    // present — restyle only, no feature lost. JS-rendered controls are
+    // asserted from each page's own JS source (no browser here).
+    const shellPages = {};
+    for (const p of ['/hostel', '/login', '/manager', '/admin']) {
+      const r = await fetch(BASE + p);
+      shellPages[p] = { status: r.status, html: await r.text() };
+    }
+    const shellJs = {};
+    for (const p of ['hostel.js', 'login.js', 'manager.js', 'admin.js']) {
+      shellJs[p] = await (await fetch(BASE + '/' + p)).text();
+    }
+    for (const [p, pg] of Object.entries(shellPages)) {
+      ok(`Phase 4 shell on ${p}: serves 200 with topnav + rail + avatar + bell + log-out`,
+        pg.status === 200 && pg.html.includes('class="topnav"') && pg.html.includes('class="rail"') &&
+        pg.html.includes('class="shell"') && pg.html.includes('id="avatarLink"') &&
+        pg.html.includes('id="bellBtn"') && pg.html.includes('id="bellPop"') &&
+        pg.html.includes('id="navLogoutBtn"') && pg.html.includes('class="glass-card page-head"'),
+        pg.status);
+      ok(`Phase 4: no external asset on ${p} (no img, no http URL, no CDN)`,
+        !pg.html.includes('<img') && !pg.html.includes('http://') && !pg.html.includes('https://'),
+        'external reference found on ' + p);
+    }
+    // Current page's rail icon (and nav pill) highlighted. The detail page
+    // is a search result, so Search is its active section; login/admin
+    // have their own rail icon + pill since no home section matches them.
+    const railActive = { '/hostel': '/#find', '/login': '/login', '/manager': '/manager', '/admin': '/admin' };
+    for (const [p, href] of Object.entries(railActive)) {
+      ok(`Phase 4: ${p} highlights its own rail icon (and nav pill)`,
+        shellPages[p].html.includes('class="rail-btn is-active" href="' + href + '"') &&
+        shellPages[p].html.includes('class="nav-pill is-active" href="' + href + '"'),
+        'active rail/pill missing on ' + p);
+    }
+    // Detail page: every v2 control still present (static HTML + hostel.js).
+    const hostelHtml = shellPages['/hostel'].html;
+    ok('detail page keeps every v2 control (back link, reviews, price history)',
+      hostelHtml.includes('id="detail"') && hostelHtml.includes('id="reviewsCard"') &&
+      hostelHtml.includes('id="reviewSummary"') &&
+      hostelHtml.includes('Student review — the site has not verified this student lived here.') &&
+      hostelHtml.includes('id="reviewList"') && hostelHtml.includes('id="writeReview"') &&
+      hostelHtml.includes('id="history"') && hostelHtml.includes('Price history') &&
+      hostelHtml.includes('← Back to search'), 'detail control missing');
+    ok('detail JS still renders fees, rooms, map, gallery, rental, mess, reviews',
+      shellJs['hostel.js'].includes('Fees — every charge') && shellJs['hostel.js'].includes('Room types') &&
+      shellJs['hostel.js'].includes('Amenities') && shellJs['hostel.js'].includes('maps_embed_url') &&
+      shellJs['hostel.js'].includes('<iframe') && shellJs['hostel.js'].includes('Open in Google Maps') &&
+      shellJs['hostel.js'].includes('Photos') && shellJs['hostel.js'].includes('Rental period not stated') &&
+      shellJs['hostel.js'].includes('Write a review') && shellJs['hostel.js'].includes('Log in as a student') &&
+      shellJs['hostel.js'].includes('escapeHtml'), 'detail render missing');
+    // Login page: both login cards, register form, optional phone, approval note.
+    const loginHtml = shellPages['/login'].html;
+    ok('login page keeps both login cards + register form + approval note',
+      loginHtml.includes('Log in as Manager') && loginHtml.includes('Log in as Student') &&
+      loginHtml.includes('id="mgrLogin"') && loginHtml.includes('id="stuLogin"') &&
+      loginHtml.includes('id="registerForm"') && loginHtml.includes('Password (at least 8 characters)') &&
+      loginHtml.includes('Display name') && loginHtml.includes('Phone (optional') &&
+      loginHtml.includes('waiting for master approval') &&
+      loginHtml.includes('value="manager"') && loginHtml.includes('value="student"'),
+      'login control missing');
+    const phoneTag = (loginHtml.match(/<input[^>]*name="phone"[^>]*>/) || [''])[0];
+    ok('register phone stays optional (label says optional, field has no required)',
+      loginHtml.includes('Phone (optional') && !phoneTag.includes('required'), phoneTag);
+    ok('login JS still posts to the auth endpoints and keeps the approval message',
+      shellJs['login.js'].includes('/api/auth/login') && shellJs['login.js'].includes('/api/auth/register') &&
+      shellJs['login.js'].includes('waiting for master approval'), 'login JS missing');
+    // Manager page: my-hostels, form, reviews anchor, photo upload, status line.
+    const p4MgrHtml = shellPages['/manager'].html;
+    ok('manager page keeps my-hostels, form, reviews anchor, photo note, status line',
+      p4MgrHtml.includes('id="reviews"') && p4MgrHtml.includes('My hostels') && p4MgrHtml.includes('id="myList"') &&
+      p4MgrHtml.includes('id="newBtn"') && p4MgrHtml.includes('id="hostelForm"') && p4MgrHtml.includes('id="formCard"') &&
+      p4MgrHtml.includes('id="accountStatus"') && p4MgrHtml.includes('id="logoutBtn"') &&
+      p4MgrHtml.includes('id="loadReviewsBtn"') && p4MgrHtml.includes('id="reviewsList"') &&
+      p4MgrHtml.includes('id="feeFields"') && p4MgrHtml.includes('id="amenityFields"') &&
+      p4MgrHtml.includes('id="roomTypes"') && p4MgrHtml.includes('id="otherCharges"') &&
+      p4MgrHtml.includes('Not available') && p4MgrHtml.includes('5 MB') && p4MgrHtml.includes('8 photos') &&
+      p4MgrHtml.includes('Photos are stored on this server and are lost if the site is redeployed'),
+      'manager control missing');
+    ok('manager JS still builds Not-available fees/amenities, photo upload, reviews queue',
+      shellJs['manager.js'].includes('Not available') && shellJs['manager.js'].includes('data-fee') &&
+      shellJs['manager.js'].includes('data-am') && shellJs['manager.js'].includes('data-upload') &&
+      shellJs['manager.js'].includes('accept=".jpg,.jpeg,.png,.webp"') &&
+      shellJs['manager.js'].includes('REJECT_REASONS') && shellJs['manager.js'].includes('data-approve-review') &&
+      shellJs['manager.js'].includes('data-reject-review') && shellJs['manager.js'].includes('loadPhotos'),
+      'manager JS missing');
+    ok('manager account status says "Waiting for master approval" while pending',
+      shellJs['manager.js'].includes('Waiting for master approval'), 'pending status text missing');
+    // Admin page: code box, pending managers, rejected reviews, audit trail.
+    const p4AdminHtml = shellPages['/admin'].html;
+    ok('admin page keeps code box, pending managers, rejected reviews, audit trail',
+      p4AdminHtml.includes('Admin code') && p4AdminHtml.includes('id="code"') &&
+      p4AdminHtml.includes('id="loadBtn"') && p4AdminHtml.includes('Pending managers') &&
+      p4AdminHtml.includes('id="loadPendingBtn"') && p4AdminHtml.includes('Rejected reviews') &&
+      p4AdminHtml.includes('id="loadRejectedBtn"') && p4AdminHtml.includes('Audit trail') &&
+      p4AdminHtml.includes('id="loadAuditBtn"') && p4AdminHtml.includes('id="list"') &&
+      p4AdminHtml.includes('id="pendingList"') && p4AdminHtml.includes('id="rejectedList"') &&
+      p4AdminHtml.includes('id="auditList"'), 'admin control missing');
+    ok('admin JS still does verify/hide/edit + overturn + audit with the master code',
+      shellJs['admin.js'].includes('/api/master/managers') && shellJs['admin.js'].includes('/api/master/reviews') &&
+      shellJs['admin.js'].includes('/api/master/audit') && shellJs['admin.js'].includes('data-verify') &&
+      shellJs['admin.js'].includes('data-hide') && shellJs['admin.js'].includes('data-edit') &&
+      shellJs['admin.js'].includes('Source note (required to verify)') &&
+      shellJs['admin.js'].includes('X-Master-Code') && shellJs['admin.js'].includes('Overturn — approve') &&
+      shellJs['admin.js'].includes('escapeHtml'), 'admin JS missing');
+    // Shell JS on all four pages: avatar from /api/auth/me + bell + log-out.
+    for (const [p, js] of Object.entries(shellJs)) {
+      ok(`Phase 4 shell JS on ${p}: avatar from /api/auth/me + bell + log-out`,
+        js.includes('loadShellUser') && js.includes('/api/auth/me') && js.includes('avatarName') &&
+        js.includes('bellBtn') && js.includes('navLogoutBtn') && js.includes('/api/auth/logout'),
+        'shell JS missing in ' + p);
+    }
+    ok('Phase 4 CSS: page-head + login grid + field grid + nav log-out hidden rule',
+      css.includes('.page-head h1') && css.includes('.login-grid') &&
+      css.includes('.field-grid') && css.includes('.nav-logout[hidden]'),
+      'Phase 4 CSS missing');
+    ok('Phase 4 CSS: login + field grids stack to one column at 640px',
+      css.includes('.login-grid{grid-template-columns:1fr}') &&
+      css.includes('.field-grid{grid-template-columns:1fr}'),
+      'mobile grid rules missing');
+    ok('Phase 4: the old generic header rule is gone (every page uses the real shell)',
+      !css.includes('header:not(.topnav)'), 'dead header rule still in CSS');
+
+    // ---- 19. Phase 5 final review: second pass over everything ----
+    // (a) The Phase 3 EXAMPLE/chip inconsistency is fixed: a chip
+    // operates on VERIFIED + LISTED hostels only — the same population
+    // as the scene and the stat cards — so the chip's status line, the
+    // list and the scene can never disagree about EXAMPLE rows.
+    const exRows = [
+      { id: 1, status: 'VERIFIED', rent_pkr: 20000, price_basis: 'month', monthly_rent_equivalent: 20000, seats_available: 0 },
+      { id: 2, status: 'LISTED', rent_pkr: 15000, price_basis: 'month', monthly_rent_equivalent: 15000, seats_available: 3 },
+      { id: 3, status: 'EXAMPLE', rent_pkr: 1000, price_basis: 'month', monthly_rent_equivalent: 1000, seats_available: 9 },
+      { id: 4, status: 'EXAMPLE', rent_pkr: 500, price_basis: 'month', monthly_rent_equivalent: 500 },
+    ];
+    ok('Phase 5: chips never pull EXAMPLE rows in (vacant / verified / cheapest)',
+      Stats.applyQuickFilter(exRows, 'vacant').map(l => l.id).join(',') === '2' &&
+      Stats.applyQuickFilter(exRows, 'verified').map(l => l.id).join(',') === '1' &&
+      Stats.applyQuickFilter(exRows, 'cheapest').map(l => l.id).join(',') === '2,1',
+      { vacant: Stats.applyQuickFilter(exRows, 'vacant'), cheapest: Stats.applyQuickFilter(exRows, 'cheapest') });
+    ok('Phase 5: with no chip active the plain list still shows EXAMPLE rows when ticked',
+      Stats.applyQuickFilter(exRows, null).length === 4,
+      Stats.applyQuickFilter(exRows, null).length);
+    const liveEx = await get('/api/listings?show_examples=1');
+    const chipOnFull = Stats.applyQuickFilter(liveEx.listings, 'cheapest').map(l => l.id);
+    const chipOnScene = Stats.applyQuickFilter(Scene.sceneListings(liveEx.listings), 'cheapest').map(l => l.id);
+    ok('Phase 5: chip on the full server rows (EXAMPLE ticked) agrees with chip on the scene rows',
+      liveEx.listings.some(l => l.status === 'EXAMPLE') &&
+      !Stats.applyQuickFilter(liveEx.listings, 'cheapest').some(l => l.status === 'EXAMPLE') &&
+      JSON.stringify(chipOnFull) === JSON.stringify(chipOnScene),
+      { chipOnFull, chipOnScene });
+    ok('Phase 5: chip status count equals the scene block count for that filter',
+      Scene.layout(Stats.applyQuickFilter(Scene.sceneListings(liveEx.listings), 'cheapest')).count === chipOnFull.length &&
+      Stats.quickFilterStatus(chipOnFull.length, 'cheapest') === 'Showing ' + chipOnFull.length + ' hostels, cheapest first.',
+      { count: chipOnFull.length, status: Stats.quickFilterStatus(chipOnFull.length, 'cheapest') });
+
+    // (b) End-to-end flow in one chain: manager registers pending ->
+    // master approves -> logs in -> creates a listing (scene + stats
+    // move); student registers -> logs in -> reviews (pending, invisible)
+    // -> manager approves -> public, counted, labelled on the scene.
+    const e2eMgrReg = await reg('p5-e2e-mgr@example.com', 'manager', 'mgrpass99', nextIp());
+    const e2eMgrLoginBefore = await login('p5-e2e-mgr@example.com', 'mgrpass99', nextIp());
+    ok('Phase 5 E2E: manager registers pending and cannot log in yet',
+      e2eMgrReg.status === 201 && e2eMgrReg.d.status === 'pending' &&
+      e2eMgrLoginBefore.status === 401, { reg: e2eMgrReg.status, login: e2eMgrLoginBefore.status });
+    const e2eMgrApprove = await masterPost('/api/master/managers/decide', { user_id: e2eMgrReg.d.id, decision: 'approve' }, MASTER);
+    const e2eMgrLogin = await login('p5-e2e-mgr@example.com', 'mgrpass99', nextIp());
+    const e2eBefore = await get('/api/listings');
+    const e2eStatsBefore = Stats.computeStats(e2eBefore.listings, {});
+    const e2eReviewsBeforeById = {};
+    await Promise.all(Stats.statListings(e2eBefore.listings).map(async l => {
+      const r = await pubReviews(l.id);
+      e2eReviewsBeforeById[l.id] = r.reviews || [];
+    }));
+    const e2eReviewsBefore = Object.values(e2eReviewsBeforeById).reduce((s, rs) => s + rs.length, 0);
+    const e2eHostel = await mgrPost(e2eMgrLogin.cookie, { ...fullListing, name: 'P5 E2E Hostel',
+      room_types: [{ room: 'single', rent_pkr: 18000, seats: 3, mess_included: false, mess_pkr: 5000 },
+        { room: 'double', rent_pkr: 14000, seats: 5, mess_included: true, mess_pkr: null }],
+      seats_available: 4 });
+    const e2eAfter = await get('/api/listings');
+    const e2eStatsAfter = Stats.computeStats(e2eAfter.listings, {});
+    ok('Phase 5 E2E: approved manager creates a listing that appears in the scene + stats',
+      e2eMgrApprove.status === 200 && e2eMgrLogin.status === 200 && e2eHostel.status === 201 &&
+      Scene.sceneListings(e2eAfter.listings).some(l => l.id === e2eHostel.d.listing.id) &&
+      Scene.chartData(e2eAfter.listings).rows.some(r => r.id === e2eHostel.d.listing.id && r.monthlyRent === 20000) &&
+      e2eStatsAfter.hostels === e2eStatsBefore.hostels + 1 &&
+      e2eStatsAfter.rooms === e2eStatsBefore.rooms + 8,
+      { hostel: e2eHostel.status, statsBefore: e2eStatsBefore, statsAfter: e2eStatsAfter });
+    const e2eStu = await makeStudent('p5-e2e-stu@example.com');
+    const e2eRev = await submitReview(e2eStu.cookie, { listing_id: e2eHostel.d.listing.id, rating: 5, body: 'Quiet rooms, good mess.' });
+    const e2ePubBefore = await pubReviews(e2eHostel.d.listing.id);
+    const e2eDetBefore = await get('/api/listings/' + e2eHostel.d.listing.id);
+    ok('Phase 5 E2E: student review submits pending and stays invisible publicly',
+      e2eRev.status === 201 && e2eRev.d.review.status === 'pending' &&
+      e2ePubBefore.reviews.length === 0 &&
+      e2eDetBefore.review_summary.review_count === 0 &&
+      e2eDetBefore.review_summary.unpublished_review_count === 1,
+      { rev: e2eRev.status, summary: e2eDetBefore.review_summary });
+    const e2eApprove = await mgrDecide(e2eMgrLogin.cookie, { review_id: e2eRev.d.review.id, decision: 'approve' });
+    const e2ePubAfter = await pubReviews(e2eHostel.d.listing.id);
+    const e2eDetAfter = await get('/api/listings/' + e2eHostel.d.listing.id);
+    const e2eFresh = await get('/api/listings');
+    const e2eFreshReviewsById = {};
+    await Promise.all(Stats.statListings(e2eFresh.listings).map(async l => {
+      const r = await pubReviews(l.id);
+      e2eFreshReviewsById[l.id] = r.reviews || [];
+    }));
+    const e2eFreshStats = Stats.computeStats(e2eFresh.listings, e2eFreshReviewsById);
+    ok('Phase 5 E2E: manager approval makes the review public, counted, and labelled on the scene',
+      e2eApprove.status === 200 && e2ePubAfter.reviews.length === 1 &&
+      e2ePubAfter.reviews[0].reviewer_name === 'p5-e2e-stu' &&
+      e2eDetAfter.review_summary.review_count === 1 && e2eDetAfter.review_summary.average_rating === 5 &&
+      Scene.studentLabel(e2ePubAfter.reviews) === 'p5-e2e-stu' &&
+      e2eFreshStats.reviews === e2eReviewsBefore + 1,
+      { pub: e2ePubAfter.reviews, summary: e2eDetAfter.review_summary, reviewsBefore: e2eReviewsBefore, reviewsAfter: e2eFreshStats.reviews });
+
+    // (c) Home page shell parity: the Log out pill the four sub-pages
+    // have was missing on the home page; it is there now and wired.
+    const p5HomeRes = await fetch(BASE + '/');
+    const p5HomeHtml = await p5HomeRes.text();
+    ok('Phase 5: home page serves 200 with the same Log out pill as the sub-pages',
+      p5HomeRes.status === 200 && p5HomeHtml.includes('id="navLogoutBtn"') &&
+      p5HomeHtml.includes('hidden>Log out</button>'), p5HomeRes.status);
+    ok('Phase 5: home-page shell JS wires the log-out pill (avatar + bell + log-out)',
+      appJsFile.includes('loadShellUser') && appJsFile.includes('/api/auth/me') &&
+      appJsFile.includes('avatarName') && appJsFile.includes('bellBtn') &&
+      appJsFile.includes('navLogoutBtn') && appJsFile.includes('/api/auth/logout'),
+      'home shell JS missing');
+
+    // (d) No dead controls: the calculator said nothing when no listing
+    // was selected; the price-history toggle used a placeholder href.
+    ok('Phase 5: calculator with no listing selected says so instead of silently doing nothing',
+      appJsFile.includes("if (!$('calcListing').value)") &&
+      appJsFile.includes('Pick a listing first — no hostels match the current filters.'),
+      'calc empty state missing');
+    ok('Phase 5: no placeholder href="#" anywhere (price-history toggle points at the real detail page)',
+      !appJsFile.includes('href="#"') &&
+      appJsFile.includes('<a href="/hostel?id=${l.id}" data-detail='),
+      'placeholder href found');
+    const allPagesHtml = [indexHtml, shellPages['/hostel'].html, shellPages['/login'].html,
+      shellPages['/manager'].html, shellPages['/admin'].html].join('\n');
+    const allHrefs = [...allPagesHtml.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
+    const hrefOk = h => h === '/' || h === '/login' || h === '/manager' || h === '/admin' ||
+      h === '/styles.css' || h.startsWith('/#') || h.startsWith('#') || h.startsWith('/hostel?id=');
+    ok('Phase 5: every link in every page points at a real route or in-page anchor',
+      allHrefs.length > 0 && allHrefs.every(hrefOk), [...new Set(allHrefs)]);
+    const httpsCount = Object.values(shellJs).join('\n').split('https://').length - 1 +
+      appJsFile.split('https://').length - 1;
+    ok('Phase 5: the only external URL any page JS builds is the Google Maps search link',
+      httpsCount === 1 && shellJs['hostel.js'].includes('https://www.google.com/maps/search/?api=1&query='),
+      'unexpected external URL in page JS');
+    const idPairs = [['app.js', indexHtml], ['hostel.js', shellPages['/hostel'].html],
+      ['login.js', shellPages['/login'].html], ['manager.js', shellPages['/manager'].html],
+      ['admin.js', shellPages['/admin'].html]];
+    const jsSrc = { 'app.js': appJsFile, 'hostel.js': shellJs['hostel.js'], 'login.js': shellJs['login.js'],
+      'manager.js': shellJs['manager.js'], 'admin.js': shellJs['admin.js'] };
+    const idProblems = [];
+    for (const [f, html] of idPairs) {
+      const src = jsSrc[f];
+      const ids = new Set();
+      for (const m of src.matchAll(/\$\('([^']+)'\)/g)) ids.add(m[1]);
+      for (const m of src.matchAll(/getElementById\('([^']+)'\)/g)) ids.add(m[1]);
+      for (const id of ids) {
+        if (!html.includes('id="' + id + '"') && !src.includes('id="' + id + '"')) idProblems.push(f + ':' + id);
+      }
+    }
+    ok('Phase 5: every id a page JS looks up exists in that page (or the JS injects it) — no dead control',
+      idProblems.length === 0, idProblems);
+
+    // (e) No invented text, no leftover v2 styling, no dead CSS class.
+    const publicText = [indexHtml, ...Object.values(shellPages).map(p => p.html),
+      appJsFile, ...Object.values(shellJs)].join('\n');
+    ok('Phase 5: no invented / placeholder text anywhere (no lorem, TODO, coming soon, TBD, demo names)',
+      !/lorem|TODO|FIXME|coming soon|\bTBD\b|John Doe|Sample Hostel/i.test(publicText),
+      'placeholder text found');
+    const cssNoComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const definedClasses = [...new Set([...cssNoComments.matchAll(/\.([A-Za-z][\w-]*)/g)].map(m => m[1]))];
+    const unusedClasses = definedClasses.filter(c => !publicText.includes(c));
+    ok('Phase 5: no leftover v2 styling — no indigo header, no old footer, every CSS class is used',
+      !css.includes('#312e81') && !css.includes('header:not(.topnav)') &&
+      !publicText.includes('<footer') && unusedClasses.length === 0, unusedClasses);
+
+    // (f) Phase 5 CSS: tablet greeting/actions cannot overlap, the 375px
+    // top nav wraps instead of overflowing, checkbox rows are 44px taps.
+    ok('Phase 5 CSS: tablet greeting/actions cannot overlap (1100px + 980px caps, none at 640px)',
+      css.includes('.scene-actions{max-width:calc(100% - 380px)}') &&
+      css.includes('.greeting{max-width:280px}') &&
+      css.includes('.scene-actions{max-width:calc(100% - 320px)}') &&
+      css.includes('.scene-actions{position:static;order:3;max-width:none;'),
+      'tablet overlap rules missing');
+    ok('Phase 5 CSS: 375px top nav wraps and the brand name ellipsises instead of overflowing',
+      css.includes('.topnav{flex-wrap:wrap}') && css.includes('text-overflow:ellipsis'),
+      'mobile topnav rules missing');
+    ok('Phase 5 CSS: checkbox rows are 44px tap targets',
+      /\.chk\{[^}]*min-height:var\(--tap\)/.test(css),
+      'chk tap-target rule missing');
 
     console.log(`\n${pass} passed, ${fail} failed.`);
     if (fail) process.exitCode = 1; else console.log('ALL TESTS PASS');
