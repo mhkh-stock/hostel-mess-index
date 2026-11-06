@@ -13,7 +13,6 @@
     <a class="nav-pill is-active" href="/">⌂ <span>Home</span></a>
     <a class="nav-pill" href="#find">⚲ <span>Search</span></a>
     <a class="nav-pill" href="#compare">▤ <span>Compare</span></a>
-    <a class="nav-pill" href="#submit">✎ <span>Submit</span></a>
     <a class="nav-pill" href="/manager">⚙ <span>Manager</span></a>
   </nav>
   <div class="nav-right">
@@ -37,7 +36,6 @@
     <a class="rail-btn is-active" href="/" aria-label="Home" title="Home">⌂</a>
     <a class="rail-btn" href="#find" aria-label="Search hostels" title="Search hostels">⚲</a>
     <a class="rail-btn" href="#compare" aria-label="Compare hostels" title="Compare hostels">▤</a>
-    <a class="rail-btn" href="#submit" aria-label="Submit a hostel" title="Submit a hostel">✎</a>
     <a class="rail-btn" href="/manager" aria-label="Manager portal" title="Manager portal">⚙</a>
   </nav>
   <main class="main">
@@ -51,7 +49,6 @@
       </div>
       <div class="scene-actions">
         <a class="pill pill-light" href="#find">⚲ Browse hostels</a>
-        <a class="pill pill-dark" href="#submit">+ Submit a hostel</a>
         <a class="pill pill-light" href="/manager">Manager portal</a>
         <button class="pill pill-accent" id="askAiBtn" type="button" aria-expanded="false" aria-controls="aiPanel">Ask Hostel AI</button>
       </div>
@@ -87,7 +84,7 @@
     </aside>
 
     <section class="card" id="find"><h2>Find a hostel</h2>
-    <p class="urdu">ہاسٹل اور میس کی قیمتیں — تصدیق شدہ اور کمیونٹی لسٹنگز</p>
+    <p class="urdu">ہاسٹل اور میس کی قیمتیں — تصدیق شدہ اور مینیجر کی لسٹنگز</p>
     <div class="filters">
     <label>City <select id="city"><option value="">All cities</option></select></label>
     <label>Area <select id="area"><option value="">All areas</option></select></label>
@@ -117,31 +114,12 @@
     <div id="compareOut"></div>
     </section>
 
-    <section class="card" id="submit"><h2>Submit a hostel</h2>
-    <p>Community submissions start as <b>LISTED</b> (unverified). They are never shown as verified until an admin confirms them with a source.</p>
-    <form id="submitForm">
-    <input name="name" placeholder="Hostel name" required>
-    <select name="city" id="subCity" required></select>
-    <select name="area" id="subArea" required></select>
-    <input name="near_university" placeholder="Near university (e.g. UET Peshawar)">
-    <select name="type" required><option value="boys">Boys</option><option value="girls">Girls</option><option value="family">Family</option></select>
-    <select name="room" required><option value="single">Single</option><option value="double">Double</option><option value="triple">Triple</option><option value="dorm">Dormitory</option></select>
-    <input name="rent_pkr" type="number" placeholder="Rent per month (PKR)" required>
-    <label class="chk"><input name="mess_included" type="checkbox"> Mess included in rent</label>
-    <input name="mess_pkr" type="number" placeholder="Mess per month (PKR, if separate)">
-    <input name="meals_per_day" type="number" placeholder="Meals per day">
-    <div id="facChecks"></div>
-    <input name="source" placeholder="Source (e.g. hostel website, Facebook post)">
-    <button>Submit listing</button>
-    </form><p id="submitOut"></p>
-    </section>
-
     <section class="card"><h2>Market ranges (reference — not one hostel's rent)</h2>
     <div id="refs"></div>
     </section>
 
     <section class="card"><h2>Honest limits</h2>
-    <p><b>LISTED</b> prices are community claims, not confirmations. Only <b>VERIFIED</b> rows carry an admin source. Ranges are market ranges, not one hostel's rent. No booking or payment happens in this app — contact the hostel directly.</p>
+    <p><b>LISTED</b> prices are manager claims, not confirmations. Only <b>VERIFIED</b> rows carry an admin source. Ranges are market ranges, not one hostel's rent. No booking or payment happens in this app — contact the hostel directly.</p>
     <p><a href="/admin">Admin</a> · <a href="/login">Manager / Student login</a></p>
     </section>
   </main>

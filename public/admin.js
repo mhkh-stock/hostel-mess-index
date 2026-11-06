@@ -5,7 +5,7 @@ const H = () => ({ 'Content-Type': 'application/json', 'X-Admin-Code': $('code')
 // Master endpoints use the X-Master-Code header (same code value).
 const HM = () => ({ 'Content-Type': 'application/json', 'X-Master-Code': $('code').value });
 // Escape every user-derived string before it goes into innerHTML.
-// Listing names/sources come from community submissions and must never be
+// Listing names/sources come from manager submissions and must never be
 // inserted as raw HTML.
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

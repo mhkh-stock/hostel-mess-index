@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const fmt = n => 'Rs ' + Number(n).toLocaleString('en-PK');
 // Escape every user-derived string before it goes into innerHTML.
 // Listing names/sources, reference rows and history fields all come from
-// user or community input and must never be inserted as raw HTML.
+// user or manager input and must never be inserted as raw HTML.
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -12,12 +12,8 @@ async function loadMeta() {
   META = await (await fetch('/api/meta')).json();
   for (const c of META.cities) {
     $('city').insertAdjacentHTML('beforeend', `<option>${escapeHtml(c)}</option>`);
-    $('subCity').insertAdjacentHTML('beforeend', `<option>${escapeHtml(c)}</option>`);
   }
-  $('facChecks').innerHTML = META.facilities.map(f =>
-    `<label class="chk"><input type="checkbox" name="fac" value="${escapeHtml(f)}"> ${escapeHtml(f)}</label>`).join(' ');
   fillAreas($('city').value, $('area'));
-  fillAreas($('subCity').value, $('subArea'));
 }
 function fillAreas(city, sel) {
   const areas = city ? META.areas[city] : Object.values(META.areas).flat();
@@ -25,12 +21,11 @@ function fillAreas(city, sel) {
     areas.map(a => `<option>${escapeHtml(a)}</option>`).join('');
 }
 $('city').addEventListener('change', () => fillAreas($('city').value, $('area')));
-$('subCity').addEventListener('change', () => fillAreas($('subCity').value, $('subArea')));
 
 function badge(l) {
   if (l.status === 'VERIFIED') return `<span class="b v">✓ VERIFIED${l.last_verified ? ' · ' + escapeHtml(l.last_verified) : ''}</span>`;
   if (l.status === 'EXAMPLE') return '<span class="b e">EXAMPLE — demo only</span>';
-  return '<span class="b l">LISTED — unverified community claim</span>';
+  return '<span class="b l">LISTED — unverified manager listing</span>';
 }
 function card(l) {
   const basis = l.price_basis === 'semester' ? 'per semester' : 'per month';
@@ -95,19 +90,6 @@ $('compareBtn').addEventListener('click', async () => {
     `<tr><td>Mess</td>${d.listings.map(l => `<td>${l.mess_included ? 'Included' : (l.mess_pkr ? fmt(l.mess_pkr) : 'Unknown')}</td>`).join('')}</tr>` +
     `<tr><td>Monthly total (no extras)</td>${d.listings.map(l => `<td>${fmt(l.monthly_rent_equivalent + (l.mess_included ? 0 : l.mess_pkr))}</td>`).join('')}</tr>` +
     `<tr><td>Facilities</td>${d.listings.map(l => `<td>${l.facilities.map(escapeHtml).join(', ') || '—'}</td>`).join('')}</tr></table>`;
-});
-
-$('submitForm').addEventListener('submit', async ev => {
-  ev.preventDefault();
-  const f = new FormData(ev.target);
-  const body = Object.fromEntries(f.entries());
-  body.mess_included = f.has('mess_included');
-  body.facilities = f.getAll('fac');
-  const r = await fetch('/api/listings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const d = await r.json();
-  $('submitOut').textContent = r.ok ? `Submitted as LISTED (unverified), id ${d.id}. It will show as a community claim until an admin verifies it.`
-    : 'Error: ' + (d.error || 'could not submit');
-  if (r.ok) { ev.target.reset(); search(); if (typeof Scene !== 'undefined' && Scene.loadScene) Scene.loadScene(); if (typeof loadStats === 'function') loadStats(); }
 });
 
 async function loadRefs() {
@@ -399,16 +381,17 @@ function renderEmpty(inner, title, sub, action) {
   const box = el('div', 'scene-empty', inner);
   el('h3', null, box, title);
   el('p', null, box, sub);
-  // Default action is the submit link. A caller may pass a button action
-  // instead (Phase 3: the quick-filter empty state offers "Show all").
+  // Default action is the Manager portal link: only approved managers
+  // add hostels. A caller may pass a button action instead (Phase 3:
+  // the quick-filter empty state offers "Show all").
   if (action && typeof action.onClick === 'function') {
     const b = el('button', 'pill pill-dark', box, action.text);
     b.type = 'button';
     b.addEventListener('click', action.onClick);
     return;
   }
-  const a = el('a', 'pill pill-dark', box, 'Submit a hostel');
-  a.href = '#submit';
+  const a = el('a', 'pill pill-dark', box, 'List your hostel — Manager portal');
+  a.href = '/manager';
 }
 
 async function loadScene() {
@@ -428,7 +411,7 @@ async function loadScene() {
   const listed = sceneListings(data && data.listings);
   if (!listed.length) {
     renderEmpty(inner, 'No hostels listed yet',
-      'No VERIFIED or LISTED hostels are on the map yet. Be the first to add one.');
+      'No VERIFIED or LISTED hostels are on the map yet. Approved managers add hostels from the Manager portal.');
     return;
   }
   // Phase 3 quick filter (Ask Hostel AI chips): the same filter the list
