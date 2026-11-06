@@ -258,8 +258,13 @@ is honest about what it is:
   logged-in students.
 - Manager portal (`/manager`): "My hostels", create/edit form with
   every fee field and amenity, photo upload, reviews queue (pending
-  first). Login portal (`/login`): "Log in as Manager" / "Log in as
-  Student" + registration.
+  first). Login is split into two totally separate pages: students use
+  `/login-student` (student login + register only) and managers use
+  `/login-manager` (manager login + register only); `/login` is only a
+  chooser with two links and no form. A page refuses the other role's
+  account with a plain message, and shows a "logged in as … — log out
+  to log in as …" box instead of the forms when you visit it while
+  logged in as the other role.
 - Master view (`/admin`): verify / hide / price edit, pending
   managers, rejected reviews with overturn, audit trail.
 
@@ -268,7 +273,7 @@ is honest about what it is:
 ```
 node server.js            # port 3034 (env PORT)
 DB_FILE=/tmp/hostel.sqlite UPLOADS_DIR=/tmp/hostel-uploads ADMIN_CODE=your-private-code node server.js
-node test.js              # 404 tests on a throwaway DB
+node test.js              # 466 tests on a throwaway DB
 ```
 
 `ADMIN_CODE` is **required** — the server exits with a FATAL message
@@ -284,6 +289,13 @@ On first run against an old database, the server creates the
 unchanged. `SESSION_SECRET` is optional — set it on deploy so
 sessions survive restarts; without it a random secret is generated at
 startup and all sessions end when the server restarts.
+
+**Testing-only single session:** `SINGLE_SESSION=1` makes every login
+invalidate all other sessions, so while testing on one PC, logging in
+as one role logs the other role out. It is OFF by default — leave it
+off on the deployed site, where a login must never log anyone else
+out (real users are separate people on separate devices). Testing on
+your PC: `$env:SINGLE_SESSION="1"` before `node server.js`.
 
 ## Honest limits (also in the site footer)
 

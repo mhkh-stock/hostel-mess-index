@@ -158,7 +158,8 @@
   first), price history, "← Back to search", and the honest labels.
   Login keeps both login cards, the register form (phone still
   optional, role select, manager-approval note), and the generic
-  login-error behaviour. Manager keeps "My hostels", the create/edit
+  login-error behaviour. (Split 2026-11-07 — see "Login split" below:
+  two separate pages now, no shared login.js.) Manager keeps "My hostels", the create/edit
   form with a "Not available" choice on every charge and amenity,
   photo upload (8/hostel, 5 MB), the reviews queue (pending first,
   approve/reject with reason, reply), and the account status now
@@ -177,6 +178,8 @@
 - Shell JS lives inside each page's own JS file (hostel.js, login.js,
   manager.js, admin.js) — no new file, because server.js serves a
   fixed per-file allowlist and this phase does not change server.js.
+  (Split 2026-11-07: login.js is deleted; the shell moved to the
+  shared shell.js and each login page has its own script.)
   server.js untouched; no API, auth, or data-model change.
 - One tiny wording change: the manager form's Google Maps placeholder
   no longer contains a full https:// URL, so the no-external-asset
@@ -267,3 +270,38 @@
   (now 404). Only approved managers add hostels, via the manager portal.
 - Seed rows unchanged (2 VERIFIED + 4 LISTED + 3 EXAMPLE); the master can
   still verify / assign ownerless LISTED rows from /admin.
+
+## Login split (2026-11-07, Hashir's order: student and manager login must be totally separate pages; one login logs the other out — testing phase only)
+- `/login` is now only a chooser: two links (Student / Manager), no form
+  at all. `/login-student` holds ONLY the student login + student
+  register (role fixed to student, no role dropdown); `/login-manager`
+  holds ONLY the manager login + manager register (role fixed to
+  manager, approval note kept). The old shared `login.js` is deleted;
+  the shared topnav shell (avatar + bell + log-out) lives in the new
+  `shell.js`, and each login page has its own script
+  (`login-student.js` / `login-manager.js`) that wires only its own
+  page's forms.
+- A page refuses the other role: a manager account typed into the
+  student page (or a student account into the manager page) is logged
+  out again at once with a plain message pointing at the right page.
+  Visiting a login page while logged in as the other role hides both
+  forms and shows "You are logged in as a … — log out to log in as a
+  …" with a working Log out button. Same role redirects on (student
+  -> home, manager -> portal). The logged-out avatar no longer says
+  "Manager / Student" anywhere (it just says "Log in", or the page's
+  own role on the two login pages). Manager approval flow, student
+  review rules, 3D restyle, Submit removal, listing logic: untouched.
+- Testing-only single session: `SINGLE_SESSION=1` (env, default OFF)
+  makes every login delete ALL other sessions from the `sessions`
+  table before creating the new one, so logging in as one role logs
+  the other role out while testing on one PC. OFF (deployed default),
+  a login touches no other session — real users are separate people
+  on separate devices. No new auth mechanism: sessions were already
+  server-side rows, so the rule is one DELETE in the login handler.
+- Tests 466/466 PASS (50 new in section 21: page separation, chooser
+  has no form, no "Manager / Student" wording anywhere, both logins
+  work, flag-OFF sessions coexist, flag-ON second server kills the
+  other session both ways, jsdom wrong-role boxes + redirects +
+  wrong-account refusal + both registers). RUN file: testing on his
+  PC -> `$env:SINGLE_SESSION="1"` before `node server.js`; deployed
+  -> leave it off.
