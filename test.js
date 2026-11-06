@@ -69,6 +69,20 @@ async function main() {
       const r = await fetch(BASE + p, { method: 'POST', headers: code ? H(code) : { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       return { status: r.status, d: await r.json() };
     };
+    // Manager helpers live here (not in section 11) because the early
+    // sections need an approved manager to create listings: since the
+    // public submit endpoint was removed, ONLY approved managers add
+    // hostels, so every test listing comes from one.
+    const mgrPost = (cookie, body) => req('POST', '/api/manager/listings', { body, headers: cookie ? { Cookie: cookie } : {} });
+    const mgrPut = (cookie, id, body) => req('PUT', '/api/manager/listings/' + id, { body, headers: cookie ? { Cookie: cookie } : {} });
+    const mgrDel = (cookie, id) => req('POST', '/api/manager/listings/' + id + '/delete', { headers: cookie ? { Cookie: cookie } : {} });
+    const mgrGet = cookie => req('GET', '/api/manager/listings', { headers: cookie ? { Cookie: cookie } : {} });
+    const makeManager = async gmail => {
+      const r = await reg(gmail, 'manager', 'mgrpass99', nextIp());
+      await masterPost('/api/master/managers/decide', { user_id: r.d.id, decision: 'approve' }, MASTER);
+      const l = await login(gmail, 'mgrpass99', nextIp());
+      return { id: r.d.id, cookie: l.cookie };
+    };
 
     // 1. Seed counts.
     const meta = await get('/api/meta');
@@ -82,31 +96,41 @@ async function main() {
     ok('examples appear only when ticked', withEx.listings.length === all.listings.length + 3, withEx.listings.length);
     ok('counts still exclude examples when shown', withEx.counts.total === all.counts.total, withEx.counts);
 
-    // 2. Community submission starts LISTED, never verified.
-    const sub = await post('/api/listings', { name: 'Test Community Hostel', city: 'Peshawar', area: 'Hayatabad',
+    // 2. Public submission is gone: only approved managers add hostels.
+    // POST /api/listings used to accept community submissions; now it 404s.
+    const gone1 = await post('/api/listings', { name: 'Gone Hostel', city: 'Peshawar', area: 'Hayatabad',
+      type: 'boys', room: 'double', rent_pkr: 15000 });
+    ok('POST /api/listings (public submit) is 404', gone1.status === 404, gone1);
+    const gone2 = await post('/api/listings', { name: 'x' });
+    ok('POST /api/listings with a bad body is also 404', gone2.status === 404, gone2.status);
+    // The listing for the verify/edit tests below comes from an approved
+    // manager instead — the only way a hostel gets added now.
+    const mgr0 = await makeManager('early-mgr@example.com');
+    const sub = await mgrPost(mgr0.cookie, { name: 'Test Manager Hostel', city: 'Peshawar', area: 'Hayatabad',
       near_university: 'UET Peshawar', type: 'boys', room: 'double', rent_pkr: 15000,
       mess_included: false, mess_pkr: 8000, meals_per_day: 3, facilities: ['WiFi'], source: 'test' });
-    ok('community submit returns 201 LISTED', sub.status === 201 && sub.d.status === 'LISTED', sub);
+    ok('manager create returns 201 LISTED', sub.status === 201 && sub.d.listing.status === 'LISTED', sub);
+    const subId = sub.d.listing.id;
     const afterSub = await get('/api/listings?city=Peshawar');
-    const mine = afterSub.listings.find(l => l.id === sub.d.id);
-    ok('submitted listing shows as LISTED, not verified', mine && mine.status === 'LISTED');
+    const mine = afterSub.listings.find(l => l.id === subId);
+    ok('manager listing shows as LISTED, not verified', mine && mine.status === 'LISTED');
     ok('verified count unchanged by a LISTED submission',
       (await get('/api/listings')).counts.verified === 2);
 
     // 3. Admin verify needs the code AND a source note.
-    const wrongCode = await post('/api/admin/verify', { id: sub.d.id, source_note: 'x' }, 'nope');
+    const wrongCode = await post('/api/admin/verify', { id: subId, source_note: 'x' }, 'nope');
     ok('verify with wrong code is 403', wrongCode.status === 403, wrongCode.status);
-    const noNote = await post('/api/admin/verify', { id: sub.d.id, source_note: '' }, 'test-admin-code');
+    const noNote = await post('/api/admin/verify', { id: subId, source_note: '' }, 'test-admin-code');
     ok('verify without a source note is 400', noNote.status === 400, noNote.status);
-    const ver = await post('/api/admin/verify', { id: sub.d.id, source_note: 'Test source, 2026-11-04' }, 'test-admin-code');
+    const ver = await post('/api/admin/verify', { id: subId, source_note: 'Test source, 2026-11-04' }, 'test-admin-code');
     ok('verify with code + source note succeeds', ver.status === 200 && ver.d.status === 'VERIFIED', ver);
-    const det = await get('/api/listings/' + sub.d.id);
+    const det = await get('/api/listings/' + subId);
     ok('verified listing carries source note + date', det.listing.status === 'VERIFIED' && !!det.listing.last_verified && det.listing.source.includes('Test source'));
 
     // 4. Price edit writes exactly one history row; new price shows.
-    const edit = await post('/api/admin/edit', { id: sub.d.id, rent_pkr: 16000 }, 'test-admin-code');
+    const edit = await post('/api/admin/edit', { id: subId, rent_pkr: 16000 }, 'test-admin-code');
     ok('admin edit ok', edit.status === 200);
-    const det2 = await get('/api/listings/' + sub.d.id);
+    const det2 = await get('/api/listings/' + subId);
     ok('new rent shows after edit', det2.listing.rent_pkr === 16000, det2.listing.rent_pkr);
     ok('exactly one history row for the rent change',
       det2.history.length === 1 && det2.history[0].field === 'rent_pkr' && det2.history[0].old_value === 15000 && det2.history[0].new_value === 16000, det2.history);
@@ -117,19 +141,19 @@ async function main() {
       filt.listings.length >= 1 && filt.listings.every(l => l.city === 'Lahore' && l.rent_pkr <= 13000), filt.listings.map(l => l.name));
 
     // 6. Monthly total maths: rent 15000 + mess 8000 = 23000 (fresh listing, no edits).
-    const sub2 = await post('/api/listings', { name: 'Calc Test Hostel', city: 'Islamabad', area: 'H-8',
+    const sub2 = await mgrPost(mgr0.cookie, { name: 'Calc Test Hostel', city: 'Islamabad', area: 'H-8',
       type: 'boys', room: 'single', rent_pkr: 15000, mess_included: false, mess_pkr: 8000 });
-    const calc = await get(`/api/calc?listing_id=${sub2.d.id}&extras=0`);
+    const calc = await get(`/api/calc?listing_id=${sub2.d.listing.id}&extras=0`);
     ok('monthly total 15000 + 8000 = 23000', calc.total === 23000, calc);
 
     // 7. Admin wrong code 403 on hide/edit; invalid city/room 400.
-    const hideWrong = await post('/api/admin/hide', { id: sub2.d.id }, 'nope');
+    const hideWrong = await post('/api/admin/hide', { id: sub2.d.listing.id }, 'nope');
     ok('hide with wrong code is 403', hideWrong.status === 403);
-    const badCity = await post('/api/listings', { name: 'Bad Hostel', city: 'Karachi', area: 'Gulshan', type: 'boys', room: 'single', rent_pkr: 10000 });
+    const badCity = await mgrPost(mgr0.cookie, { name: 'Bad Hostel', city: 'Karachi', area: 'Gulshan', type: 'boys', room: 'single', rent_pkr: 10000 });
     ok('invalid city rejected 400', badCity.status === 400, badCity.status);
-    const badRoom = await post('/api/listings', { name: 'Bad Hostel', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'penthouse', rent_pkr: 10000 });
+    const badRoom = await mgrPost(mgr0.cookie, { name: 'Bad Hostel', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'penthouse', rent_pkr: 10000 });
     ok('invalid room rejected 400', badRoom.status === 400, badRoom.status);
-    const badRent = await post('/api/listings', { name: 'Bad Hostel', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 999999 });
+    const badRent = await mgrPost(mgr0.cookie, { name: 'Bad Hostel', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 999999 });
     ok('rent over cap rejected 400', badRent.status === 400, badRent.status);
 
     // 8. Compare needs 2–3 ids.
@@ -139,9 +163,9 @@ async function main() {
     ok('compare returns 3 listings', cmp.listings.length === 3, cmp.listings.length);
 
     // 9. Hidden listings disappear from search.
-    await post('/api/admin/hide', { id: sub2.d.id }, 'test-admin-code');
+    await post('/api/admin/hide', { id: sub2.d.listing.id }, 'test-admin-code');
     const afterHide = await get('/api/listings?city=Islamabad');
-    ok('hidden listing absent from search', !afterHide.listings.find(l => l.id === sub2.d.id));
+    ok('hidden listing absent from search', !afterHide.listings.find(l => l.id === sub2.d.listing.id));
 
     // ---- 10. Phase 1 auth + roles ----
     // 10a. Manager registers pending, cannot log in, shows in pending list.
@@ -326,11 +350,11 @@ async function main() {
 
     // 10q. XSS fix: client code escapes user strings; a hostile listing name
     // is stored as data (server does not mangle it) and escaped on render.
-    const xss = await post('/api/listings', { name: '<script>alert(1)</script>', city: 'Peshawar', area: 'Hayatabad',
+    const xss = await mgrPost(mgr0.cookie, { name: '<script>alert(1)</script>', city: 'Peshawar', area: 'Hayatabad',
       type: 'boys', room: 'double', rent_pkr: 15000 });
-    ok('hostile listing name submits as data (201)', xss.status === 201, xss.status);
+    ok('hostile listing name from a manager stores as data (201)', xss.status === 201, xss.status);
     const xssList = await get('/api/listings?city=Peshawar');
-    const xssRow = xssList.listings.find(l => l.id === xss.d.id);
+    const xssRow = xssList.listings.find(l => l.id === xss.d.listing.id);
     ok('hostile name is stored verbatim in the JSON (escaping is on render)', xssRow && xssRow.name.includes('<script>'), xssRow && xssRow.name);
     const appJs = await (await fetch(BASE + '/app.js')).text();
     ok('app.js escapes listing names/sources on render',
@@ -360,16 +384,6 @@ async function main() {
     }
 
     // ---- 11. Phase 2 manager portal + listing fields ----
-    const mgrPost = (cookie, body) => req('POST', '/api/manager/listings', { body, headers: cookie ? { Cookie: cookie } : {} });
-    const mgrPut = (cookie, id, body) => req('PUT', '/api/manager/listings/' + id, { body, headers: cookie ? { Cookie: cookie } : {} });
-    const mgrDel = (cookie, id) => req('POST', '/api/manager/listings/' + id + '/delete', { headers: cookie ? { Cookie: cookie } : {} });
-    const mgrGet = cookie => req('GET', '/api/manager/listings', { headers: cookie ? { Cookie: cookie } : {} });
-    const makeManager = async gmail => {
-      const r = await reg(gmail, 'manager', 'mgrpass99', nextIp());
-      await masterPost('/api/master/managers/decide', { user_id: r.d.id, decision: 'approve' }, MASTER);
-      const l = await login(gmail, 'mgrpass99', nextIp());
-      return { id: r.d.id, cookie: l.cookie };
-    };
     const fullListing = { name: 'P2 Test Hostel', city: 'Peshawar', area: 'Hayatabad',
       near_university: 'UET Peshawar', type: 'boys', room: 'double', rent_pkr: 20000,
       mess_included: false, mess_pkr: 8000, meals_per_day: 3, facilities: ['WiFi'], source: 'p2 test' };
@@ -1042,10 +1056,13 @@ async function main() {
 
     // 14c. Admin verify/hide/edit write audit rows (Phase 5 fix: the legacy
     // admin endpoints wrote no audit rows at all).
-    const auditListing = await post('/api/listings', { name: 'P5 Audit Hostel', city: 'Lahore', area: 'Gulberg',
+    // mgr1's session died when it was suspended + reinstated earlier, so
+    // the audit listing comes from a fresh approved manager.
+    const auditMgr = await makeManager('p5-audit-mgr@example.com');
+    const auditListing = await mgrPost(auditMgr.cookie, { name: 'P5 Audit Hostel', city: 'Lahore', area: 'Gulberg',
       type: 'boys', room: 'single', rent_pkr: 13000 });
-    ok('audit-test listing submits', auditListing.status === 201, auditListing.status);
-    const auditId = auditListing.d.id;
+    ok('audit-test listing created by a manager', auditListing.status === 201, auditListing.status);
+    const auditId = auditListing.d.listing.id;
     await post('/api/admin/verify', { id: auditId, source_note: 'P5 audit test source' }, 'test-admin-code');
     await post('/api/admin/edit', { id: auditId, rent_pkr: 14000 }, 'test-admin-code');
     await post('/api/admin/hide', { id: auditId }, 'test-admin-code');
@@ -1055,18 +1072,20 @@ async function main() {
       actions5.includes('listing.verified:' + auditId) && actions5.includes('listing.updated:' + auditId)
       && actions5.includes('listing.hidden:' + auditId), actions5.slice(0, 12));
 
-    // 14d. Boundary validation (Phase 5 fixes): community submit + admin
+    // 14d. Boundary validation (Phase 5 fixes): manager create + admin
     // edit + login/master unknown fields + calc/listings query params.
-    const commUnknown = await post('/api/listings', { name: 'P5 Unknown', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000, is_verified: true });
-    ok('community submit with an unknown field is 400', commUnknown.status === 400, commUnknown.status);
-    const commLongName = await post('/api/listings', { name: 'x'.repeat(101), city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000 });
-    ok('community submit with a 101-char name is 400', commLongName.status === 400, commLongName.status);
-    const commBadMeals = await post('/api/listings', { name: 'P5 Meals', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000, meals_per_day: -1 });
-    ok('community submit with meals_per_day -1 is 400', commBadMeals.status === 400, commBadMeals.status);
-    const commBadFac = await post('/api/listings', { name: 'P5 Fac', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000, facilities: ['swimming pool'] });
-    ok('community submit with an unknown facility is 400', commBadFac.status === 400, commBadFac.status);
-    const commFloatRent = await post('/api/listings', { name: 'P5 Float', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000.5 });
-    ok('community submit with a float rent is 400', commFloatRent.status === 400, commFloatRent.status);
+    // (The old community-submit boundary tests moved here: the manager
+    // endpoint is now the only create route and shares the same parser.)
+    const commUnknown = await mgrPost(auditMgr.cookie, { name: 'P5 Unknown', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000, is_verified: true });
+    ok('manager create with an unknown field is 400', commUnknown.status === 400, commUnknown.status);
+    const commLongName = await mgrPost(auditMgr.cookie, { name: 'x'.repeat(101), city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000 });
+    ok('manager create with a 101-char name is 400', commLongName.status === 400, commLongName.status);
+    const commBadMeals = await mgrPost(auditMgr.cookie, { name: 'P5 Meals', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000, meals_per_day: -1 });
+    ok('manager create with meals_per_day -1 is 400', commBadMeals.status === 400, commBadMeals.status);
+    const commBadFac = await mgrPost(auditMgr.cookie, { name: 'P5 Fac', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000, facilities: ['swimming pool'] });
+    ok('manager create with an unknown facility is 400', commBadFac.status === 400, commBadFac.status);
+    const commFloatRent = await mgrPost(auditMgr.cookie, { name: 'P5 Float', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000.5 });
+    ok('manager create with a float rent is 400', commFloatRent.status === 400, commFloatRent.status);
     const adminBadRent = await post('/api/admin/edit', { id: auditId, rent_pkr: 'abc' }, 'test-admin-code');
     ok('admin edit with rent "abc" is 400 (not a crash)', adminBadRent.status === 400, adminBadRent.status);
     const adminBadJson = await req('POST', '/api/admin/edit', { body: 'not json', headers: { 'X-Admin-Code': 'test-admin-code' } });
@@ -1411,10 +1430,11 @@ async function main() {
       appJsFile.includes('getQuickFilter()') &&
       sceneSrc.includes('No hostels match this filter'),
       'quick-filter wiring missing');
-    ok('a successful community submission refreshes the list, the scene and the stats',
-      appJsFile.includes("if (typeof loadStats === 'function') loadStats();") &&
-      appJsFile.includes("if (typeof Scene !== 'undefined' && Scene.loadScene) Scene.loadScene();"),
-      'submit refresh wiring missing');
+    ok('no community-submit wiring left in app.js (no submit form, no POST /api/listings)',
+      !appJsFile.includes('submitForm') && !appJsFile.includes('submitOut') &&
+      !appJsFile.includes("'/api/listings', { method: 'POST'") &&
+      !appJsFile.includes('Submit a hostel') && !appJsFile.includes('#submit'),
+      'submit wiring still in app.js');
     // Live delta: a new manager listing with stated room seats moves the
     // Rooms stat by exactly that many, and shows under the vacant chip.
     const beforeStats = Stats.computeStats((await get('/api/listings')).listings, {});
@@ -1756,6 +1776,41 @@ async function main() {
     ok('Phase 5 CSS: checkbox rows are 44px tap targets',
       /\.chk\{[^}]*min-height:var\(--tap\)/.test(css),
       'chk tap-target rule missing');
+
+    // ---- 20. Submit removal (2026-11-07): only approved managers list ----
+    // The public submit path is gone end to end: no endpoint, no form,
+    // no nav link on any page. The manager add-hostel flow still works.
+    const noSubmitPages = { '/': indexHtml, '/hostel': shellPages['/hostel'].html,
+      '/login': shellPages['/login'].html, '/manager': shellPages['/manager'].html,
+      '/admin': shellPages['/admin'].html };
+    for (const [p, html] of Object.entries(noSubmitPages)) {
+      ok(`Submit removal: no Submit link or form on ${p}`,
+        !html.includes('href="#submit"') && !html.includes('href="/#submit"') &&
+        !html.includes('Submit a hostel') && !html.includes('id="submitForm"') &&
+        !html.includes('Submit listing') && !html.includes('id="submitOut"'),
+        'Submit markup still on ' + p);
+    }
+    ok('Submit removal: app.js has no submit wiring at all',
+      !appJsFile.includes('submitForm') && !appJsFile.includes('submitOut') &&
+      !appJsFile.includes('subCity') && !appJsFile.includes('subArea') &&
+      !appJsFile.includes('facChecks') && !appJsFile.includes('#submit') &&
+      !appJsFile.includes('Submit a hostel'),
+      'submit wiring still in app.js');
+    ok('Submit removal: the empty-scene action points at the Manager portal, not a submit form',
+      appJsFile.includes("a.href = '/manager'") && appJsFile.includes('List your hostel — Manager portal') &&
+      !appJsFile.includes("a.href = '#submit'"),
+      'empty-scene action still points at submit');
+    const remPost = await post('/api/listings', { name: 'Still Gone Hostel', city: 'Lahore', area: 'Gulberg',
+      type: 'boys', room: 'single', rent_pkr: 12000 });
+    ok('Submit removal: POST /api/listings is 404 for a valid manager-style body too',
+      remPost.status === 404, remPost);
+    const remMgr = await makeManager('removal-mgr@example.com');
+    const remCreate = await mgrPost(remMgr.cookie, { ...fullListing, name: 'Removal Check Hostel' });
+    ok('Submit removal: an approved manager can still add a hostel (201 LISTED)',
+      remCreate.status === 201 && remCreate.d.listing.status === 'LISTED', remCreate);
+    const remSearch = await get('/api/listings?city=Peshawar');
+    ok('Submit removal: the manager-added hostel shows in public search',
+      remSearch.listings.some(l => l.id === remCreate.d.listing.id), remSearch.listings.map(l => l.id));
 
     console.log(`\n${pass} passed, ${fail} failed.`);
     if (fail) process.exitCode = 1; else console.log('ALL TESTS PASS');
