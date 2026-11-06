@@ -9,7 +9,7 @@
 - Seed: 16 reference rows, 2 VERIFIED official UET rows,
   4 LISTED published prices, 3 EXAMPLE listings, 0 invented hostels.
 
-## v2 (built 2026-11-06, tests 304/304 PASS — manager portal + student reviews)
+## v2 (built 2026-11-06, tests 306/306 PASS — manager portal + student reviews)
 - Phase 1 — auth + roles: users + sessions tables, scrypt passwords,
   HMAC-SHA256 session tokens, HttpOnly SameSite=Lax cookies (24h),
   5-fail/15-min lockout (account + IP), register/login/logout/me/

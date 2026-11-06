@@ -222,7 +222,7 @@ labelled "as stated by the hostel" — never computed, never invented.
 ```
 node server.js            # port 3034 (env PORT)
 DB_FILE=/tmp/hostel.sqlite UPLOADS_DIR=/tmp/hostel-uploads ADMIN_CODE=your-private-code node server.js
-node test.js              # 304 tests on a throwaway DB
+node test.js              # 306 tests on a throwaway DB
 ```
 
 `ADMIN_CODE` is **required** — the server exits with a FATAL message
