@@ -119,7 +119,7 @@ async function loadShellUser() {
   $('avatarInitial').textContent = (me.display_name || '?').trim().charAt(0).toUpperCase() || '?';
   $('avatarName').textContent = me.display_name || roleLabel(me.role);
   $('avatarRole').textContent = roleLabel(me.role);
-  $('avatarLink').href = me.role === 'manager' ? '/manager' : '/login';
+  $('avatarLink').href = me.role === 'manager' ? '/manager' : '/';
   const out = $('navLogoutBtn');
   if (out) out.hidden = false;
 }
@@ -586,7 +586,7 @@ function pendingReviewsAction(role) {
   if (role === 'manager') {
     return { action: 'open-queue', url: '/manager#reviews', message: 'Opening the manager review queue…' };
   }
-  return { action: 'login-message', url: '/login', message: 'Log in as a manager to see pending reviews.' };
+  return { action: 'login-message', url: '/login-manager', message: 'Log in as a manager to see pending reviews.' };
 }
 function getQuickFilter() { return quickFilter; }
 

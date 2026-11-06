@@ -26,7 +26,7 @@
     </div>
     <a class="avatar" id="avatarLink" href="/login">
       <span class="avatar-circle" id="avatarInitial" aria-hidden="true">H</span>
-      <span class="avatar-text"><span id="avatarName">Log in</span><span class="avatar-role" id="avatarRole">Manager / Student</span></span>
+      <span class="avatar-text"><span id="avatarName">Log in</span><span class="avatar-role" id="avatarRole"></span></span>
     </a>
     <button class="pill pill-light nav-logout" id="navLogoutBtn" type="button" hidden>Log out</button>
   </div>
@@ -42,7 +42,7 @@
 <section class="glass-card page-head"><h1>Manager portal — Hostel + Mess Index</h1>
 <p class="sub">Run your own hostels: fees, map, contact, rental period.</p></section>
 <section class="card" id="accountCard"><h2>Your account</h2><p id="accountStatus">Checking…</p>
-<p id="notLoggedIn" hidden>Please <a href="/login">log in as a manager</a> first.</p>
+<p id="notLoggedIn" hidden>Please <a href="/login-manager">log in as a manager</a> first.</p>
 <button id="logoutBtn" hidden>Log out</button></section>
 
 <div id="portal" hidden>
@@ -125,7 +125,7 @@
 <button type="button" id="hideBtn" hidden>Hide this listing</button>
 </form><p id="formMsg"></p></section>
 </div>
-<p><a href="/">← Back to search</a> · <a href="/login">Login page</a></p>
+<p><a href="/">← Back to search</a> · <a href="/login-manager">Login page</a></p>
 </main>
 </div>
 <script src="/manager.js"></script>

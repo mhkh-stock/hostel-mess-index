@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log in as Student — Hostel + Mess Index</title>
+<link rel="stylesheet" href="/styles.css"></head>
+<body>
+<header class="topnav">
+  <a class="brand" href="/">
+    <span class="logo-dot" aria-hidden="true">H</span>
+    <span class="brand-name">Hostel + Mess Index</span>
+  </a>
+  <nav class="nav-pills" aria-label="Sections">
+    <a class="nav-pill" href="/">⌂ <span>Home</span></a>
+    <a class="nav-pill" href="/#find">⚲ <span>Search</span></a>
+    <a class="nav-pill" href="/#compare">▤ <span>Compare</span></a>
+    <a class="nav-pill" href="/manager">⚙ <span>Manager</span></a>
+    <a class="nav-pill is-active" href="/login-student">👤 <span>Log in</span></a>
+  </nav>
+  <div class="nav-right">
+    <a class="icon-btn" href="/#find" aria-label="Search hostels"><span aria-hidden="true">⚲</span></a>
+    <div class="bell-wrap">
+      <button class="icon-btn" id="bellBtn" type="button" aria-label="Notifications" aria-expanded="false"><span class="icon-bell" aria-hidden="true"></span></button>
+      <div class="bell-pop" id="bellPop" hidden>
+        <p><b>Notifications</b></p>
+        <p>No new notifications.</p>
+      </div>
+    </div>
+    <a class="avatar" id="avatarLink" href="/login-student">
+      <span class="avatar-circle" id="avatarInitial" aria-hidden="true">H</span>
+      <span class="avatar-text"><span id="avatarName">Log in</span><span class="avatar-role" id="avatarRole">Student</span></span>
+    </a>
+    <button class="pill pill-light nav-logout" id="navLogoutBtn" type="button" hidden>Log out</button>
+  </div>
+</header>
+<div class="shell">
+  <nav class="rail" aria-label="Main">
+    <a class="rail-btn" href="/" aria-label="Home" title="Home">⌂</a>
+    <a class="rail-btn" href="/#find" aria-label="Search hostels" title="Search hostels">⚲</a>
+    <a class="rail-btn" href="/#compare" aria-label="Compare hostels" title="Compare hostels">▤</a>
+    <a class="rail-btn" href="/manager" aria-label="Manager portal" title="Manager portal">⚙</a>
+    <a class="rail-btn is-active" href="/login-student" aria-label="Log in as Student" title="Log in as Student">👤</a>
+  </nav>
+  <main class="main">
+    <section class="glass-card page-head"><h1>Log in as Student</h1>
+    <p class="sub">For students who want to write reviews. Student accounts work right after registering.</p></section>
+    <section class="card" id="wrongRoleBox" hidden><h2>Wrong login page</h2>
+    <p id="wrongRoleText"></p>
+    <p><button id="wrongRoleLogout" type="button">Log out</button></p>
+    </section>
+    <div id="loginForms">
+    <section class="card"><h2>Log in as Student</h2>
+    <form id="stuLogin">
+    <label>Gmail <input name="gmail" type="email" required></label>
+    <label>Password <input name="password" type="password" required></label>
+    <button>Log in as Student</button>
+    </form><p id="stuMsg" role="status"></p>
+    </section>
+
+    <section class="card"><h2>New here? Register as a Student</h2>
+    <p>One account per Gmail. Student accounts work right away.</p>
+    <form id="stuRegister">
+    <label>Gmail <input name="gmail" type="email" required></label>
+    <label>Password (at least 8 characters) <input name="password" type="password" required></label>
+    <label>Display name <input name="display_name" required></label>
+    <label>Phone (optional, Pakistani mobile, 03XX-XXXXXXX) <input name="phone" placeholder="03001234567"></label>
+    <input type="hidden" name="role" value="student">
+    <button>Register as Student</button>
+    </form><p id="regMsg"></p>
+    </section>
+    </div>
+    <p>Are you a hostel manager? <a href="/login-manager">Log in as Manager</a></p>
+    <p><a href="/">← Back to search</a></p>
+  </main>
+</div>
+<script src="/shell.js"></script>
+<script src="/login-student.js"></script>
+</body></html>

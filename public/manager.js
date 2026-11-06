@@ -299,7 +299,7 @@ $('hideBtn').addEventListener('click', async () => {
 });
 $('logoutBtn').addEventListener('click', async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
-  window.location.href = '/login';
+  window.location.href = '/login-manager';
 });
 
 async function init() {
@@ -313,7 +313,7 @@ async function init() {
   }
   const u = await me.json();
   if (u.role !== 'manager') {
-    $('accountStatus').textContent = `You are logged in as ${u.display_name} (${u.role}). This portal is for managers — students use the login page.`;
+    $('accountStatus').textContent = `You are logged in as ${u.display_name} (${u.role}). This portal is for managers — students use the student login page.`;
     return;
   }
   const statusText = u.status === 'pending' ? 'Waiting for master approval'
@@ -347,7 +347,7 @@ async function loadShellUser() {
   setText('avatarName', me.display_name || roleLabel(me.role));
   setText('avatarRole', roleLabel(me.role));
   const link = document.getElementById('avatarLink');
-  if (link) link.href = me.role === 'manager' ? '/manager' : '/login';
+  if (link) link.href = me.role === 'manager' ? '/manager' : '/';
   const out = document.getElementById('navLogoutBtn');
   if (out) out.hidden = false;
 }
