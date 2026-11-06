@@ -35,8 +35,9 @@
   re-verification against the code; fixed 6 gaps found in the re-check
   (review photos left public when a review was rejected after
   approval; suspended-manager listings not marked; no audit rows for
-  the legacy admin verify/hide/edit endpoints; community-submit
-  validation gaps; admin edit passed NaN into the DB on bad input;
+  the legacy admin verify/hide/edit endpoints; public-submit
+  validation gaps (that endpoint was removed 2026-11-07 — only
+  approved managers list now); admin edit passed NaN into the DB on bad input;
   photo daily limit returned 400 instead of 429; unknown fields not
   rejected on login/master/admin boundaries; invalid calc/listings
   query params). Migration proven on a copy of the pre-Phase-1 DB:
@@ -61,7 +62,9 @@
   /api/auth/me; logged out: "Find a hostel near your university"),
   action pills, scene placeholder with a working +/− zoom control
   (CSS transform scale 0.7–1.5). No feature removed: search, filters,
-  calculator, compare, submit, market ranges, honest limits all kept.
+  calculator, compare, market ranges, honest limits all kept.
+  (The public submit form listed here was removed 2026-11-07 — only
+  approved managers list now; see "Submit removal" below.)
   No fake numbers: the greeting sub-line shows real /api/listings counts.
 - Phase 2 (not started): the real 3D hostel scene inside .scene.
 
@@ -87,8 +90,8 @@
   be loaded"; zero listed hostels → "No hostels listed yet". On mobile
   ≤640px the scene scrolls horizontally inside its container.
 - Zoom (+/−, 0.7–1.5 on #sceneInner) still works; search, filters,
-  calculator, compare, submit, greeting, bell, nav search untouched.
-  The scene rebuilds after a successful community submission.
+  calculator, compare, greeting, bell, nav search untouched.
+  The scene rebuilds after an approved manager adds a listing.
 - Tests 355/355 PASS (18 new in Phase 2: block count, detail URLs,
   chart values, semester ÷6, student-label rules incl. a live approved
   review, empty state, scene structure, <a> blocks, no raw HTML, layout
@@ -124,8 +127,8 @@
   what it did in plain words ("Showing 2 verified hostels"), and
   offers a "Show all" reset. A filter matching nothing shows an honest
   scene empty state ("No hostels match this filter") with a Show-all
-  button. The scene + stats refresh after a successful community
-  submission. Search, filters, calculator, compare, submit, scene +
+  button. The scene + stats refresh after an approved manager adds a
+  listing. Search, filters, calculator, compare, scene +
   zoom, greeting, bell, nav search all untouched. server.js untouched;
   no API, auth or data-model change. No real-browser / 375px visual
   check yet — still outstanding (Hashir's PC re-test).
@@ -257,3 +260,10 @@
 - Env: `DB_FILE=/tmp/hostel.sqlite`, `NODE_VERSION=24`,
   `ADMIN_CODE=<private code, never the demo default>`.
 - Never upload `data/*.sqlite` to GitHub.
+
+## Submit removal (2026-11-07, Hashir's order: "Remove Submit — only approved managers list")
+- Public "Submit a hostel" removed end to end: nav pill + rail icon on all
+  5 pages, the #/submit form, its client JS, and `POST /api/listings`
+  (now 404). Only approved managers add hostels, via the manager portal.
+- Seed rows unchanged (2 VERIFIED + 4 LISTED + 3 EXAMPLE); the master can
+  still verify / assign ownerless LISTED rows from /admin.

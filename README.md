@@ -35,7 +35,7 @@ directly.
   anything, cannot see other students' Gmails.
 - **Public (logged out)**: search, filters, calculator, compare,
   listing detail (fees, map, photos, approved reviews, contact),
-  reference ranges. Cannot submit, review, or upload anything.
+  reference ranges. Cannot add a listing, review, or upload anything.
 
 Manager accounts start **pending** and cannot log in until the master
 approves them. Legacy listings (the 9 seed rows) have no owner; only
@@ -51,15 +51,16 @@ Every listing has exactly one status, enforced server-side:
   returns 400 if the note is empty). VERIFIED rows also carry a
   last-verified date. A manager editing their own hostel never
   verifies it — VERIFIED stays master-only.
-- **LISTED** — a community-submitted or manager-submitted claim,
-  unverified. It is always labelled "LISTED — unverified community
-  claim" and is never counted as verified.
+- **LISTED** — a manager-submitted claim,
+  unverified. It is always labelled "LISTED — unverified manager
+  listing" and is never counted as verified.
 - **EXAMPLE** — demo listings only (generic names like "Example Boys
   Hostel"). They are excluded from default search and from ALL counts,
   and appear only when the user ticks "show examples".
 
-Community submissions start LISTED. An admin verifies or hides them
-from `/admin` with the master code.
+Manager submissions start LISTED. An admin verifies or hides them
+from `/admin` with the master code. Only approved managers add
+listings — there is no public submit form.
 
 ## Price history
 
@@ -286,7 +287,7 @@ startup and all sessions end when the server restarts.
 
 ## Honest limits (also in the site footer)
 
-- LISTED prices are community claims, not confirmations.
+- LISTED prices are manager claims, not confirmations.
 - Only VERIFIED rows carry an admin source.
 - Ranges are market ranges, not one hostel's rent.
 - Semester prices are shown with a monthly-equivalent estimate,
