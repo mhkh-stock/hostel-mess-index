@@ -549,19 +549,48 @@ async function main() {
     const suspLogin = await login('p2-mgr3@example.com', 'mgrpass99', nextIp());
     ok('suspended manager cannot log in', suspLogin.status === 401, suspLogin.status);
 
-    // 11m. Pages: /login, /manager and their JS serve; index links to login.
+    // 11m. Pages: /login (chooser), /login-student, /login-manager and
+    // their JS serve; index links to the chooser login.
     const loginPage = await (await fetch(BASE + '/login')).text();
-    ok('/login serves the login portal', loginPage.includes('Log in as Manager') && loginPage.includes('Log in as Student'), loginPage.slice(0, 200));
-    const mgrPage = await (await fetch(BASE + '/manager')).text();
+    ok('/login is a chooser with two links and NO login form',
+      loginPage.includes('href="/login-student"') && loginPage.includes('href="/login-manager"') &&
+      !loginPage.includes('<form') && !loginPage.includes('id="mgrLogin"') && !loginPage.includes('id="stuLogin"'),
+      loginPage.slice(0, 200));
+    const stuPage = await (await fetch(BASE + '/login-student')).text();
+    ok('/login-student serves the student login + register only (no manager form)',
+      stuPage.includes('Log in as Student') && stuPage.includes('id="stuLogin"') &&
+      stuPage.includes('id="stuRegister"') && stuPage.includes('value="student"') &&
+      !stuPage.includes('id="mgrLogin"') && !stuPage.includes('id="mgrRegister"') &&
+      !stuPage.includes('Log in as Manager</h2>'),
+      stuPage.slice(0, 200));
+    const mgrPage = await (await fetch(BASE + '/login-manager')).text();
+    ok('/login-manager serves the manager login + register only (no student form)',
+      mgrPage.includes('Log in as Manager') && mgrPage.includes('id="mgrLogin"') &&
+      mgrPage.includes('id="mgrRegister"') && mgrPage.includes('value="manager"') &&
+      mgrPage.includes('waiting for master approval') &&
+      !mgrPage.includes('id="stuLogin"') && !mgrPage.includes('id="stuRegister"') &&
+      !mgrPage.includes('Log in as Student</h2>'),
+      mgrPage.slice(0, 200));
+    const portalPage = await (await fetch(BASE + '/manager')).text();
     ok('/manager serves the manager portal with the public-phone warning',
-      mgrPage.includes('My hostels') && mgrPage.includes('will be shown publicly') && mgrPage.includes('Photos are stored on this server and are lost if the site is redeployed'), mgrPage.slice(0, 200));
-    const loginJs = await (await fetch(BASE + '/login.js')).text();
-    ok('/login.js serves', loginJs.includes('/api/auth/login'), loginJs.slice(0, 120));
+      portalPage.includes('My hostels') && portalPage.includes('will be shown publicly') && portalPage.includes('Photos are stored on this server and are lost if the site is redeployed'), portalPage.slice(0, 200));
+    const stuLoginJs = await (await fetch(BASE + '/login-student.js')).text();
+    ok('/login-student.js serves and posts to the auth endpoints',
+      stuLoginJs.includes('/api/auth/login') && stuLoginJs.includes('/api/auth/register'), stuLoginJs.slice(0, 120));
+    const mgrLoginJs = await (await fetch(BASE + '/login-manager.js')).text();
+    ok('/login-manager.js serves and posts to the auth endpoints',
+      mgrLoginJs.includes('/api/auth/login') && mgrLoginJs.includes('/api/auth/register'), mgrLoginJs.slice(0, 120));
+    const shellJsFile = await (await fetch(BASE + '/shell.js')).text();
+    ok('/shell.js serves the shared topnav shell (avatar + bell + log-out)',
+      shellJsFile.includes('loadShellUser') && shellJsFile.includes('/api/auth/me') && shellJsFile.includes('navLogoutBtn'),
+      shellJsFile.slice(0, 120));
+    const loginGone = await fetch(BASE + '/login.js');
+    ok('/login.js is gone (404) — no shared login script any more', loginGone.status === 404, loginGone.status);
     const mgrJs = await (await fetch(BASE + '/manager.js')).text();
     ok('/manager.js serves and escapes listing names on render',
       mgrJs.includes('/api/manager/listings') && mgrJs.includes('escapeHtml'), mgrJs.slice(0, 120));
     const homeHtml = await (await fetch(BASE + '/')).text();
-    ok('index links to the Manager / Student login', homeHtml.includes('Manager / Student login') && homeHtml.includes('href="/login"'), homeHtml.slice(0, 300));
+    ok('index links to the login chooser', homeHtml.includes('href="/login"') && homeHtml.includes('>Log in</a>') && !homeHtml.includes('Manager / Student'), homeHtml.slice(0, 300));
     const adminHtml = await (await fetch(BASE + '/admin')).text();
     ok('admin page has pending-managers + audit-trail sections',
       adminHtml.includes('Pending managers') && adminHtml.includes('Audit trail'), adminHtml.slice(0, 300));
@@ -1392,7 +1421,7 @@ async function main() {
     ok('pending-reviews chip routes by role: manager opens the queue, others get the login message (no fake count)',
       mgrAct.action === 'open-queue' && mgrAct.url === '/manager#reviews' &&
       mgrHtml.includes('id="reviews"') &&
-      stuAct.action === 'login-message' && stuAct.url === '/login' &&
+      stuAct.action === 'login-message' && stuAct.url === '/login-manager' &&
       outAct.action === 'login-message' &&
       stuAct.message.includes('Log in as a manager to see pending reviews'),
       { mgrAct, stuAct, outAct });
@@ -1416,7 +1445,7 @@ async function main() {
         .every(s => panelHtml.includes(s)) &&
       panelHtml.includes('id="aiClose"') && panelHtml.includes('id="aiStatus"') &&
       panelHtml.includes('id="aiShowAll"') && panelHtml.includes('id="aiPendingMsg"') &&
-      panelHtml.includes('href="/login"') && panelHtml.includes('hidden'),
+      panelHtml.includes('href="/login-manager"') && panelHtml.includes('hidden'),
       'panel structure incomplete');
     ok('stat cards exist in the markup with real ids and the stated-only note',
       indexHtml.includes('id="stats"') &&
@@ -1487,12 +1516,12 @@ async function main() {
     // present — restyle only, no feature lost. JS-rendered controls are
     // asserted from each page's own JS source (no browser here).
     const shellPages = {};
-    for (const p of ['/hostel', '/login', '/manager', '/admin']) {
+    for (const p of ['/hostel', '/login', '/login-student', '/login-manager', '/manager', '/admin']) {
       const r = await fetch(BASE + p);
       shellPages[p] = { status: r.status, html: await r.text() };
     }
     const shellJs = {};
-    for (const p of ['hostel.js', 'login.js', 'manager.js', 'admin.js']) {
+    for (const p of ['hostel.js', 'login-student.js', 'login-manager.js', 'shell.js', 'manager.js', 'admin.js']) {
       shellJs[p] = await (await fetch(BASE + '/' + p)).text();
     }
     for (const [p, pg] of Object.entries(shellPages)) {
@@ -1509,7 +1538,8 @@ async function main() {
     // Current page's rail icon (and nav pill) highlighted. The detail page
     // is a search result, so Search is its active section; login/admin
     // have their own rail icon + pill since no home section matches them.
-    const railActive = { '/hostel': '/#find', '/login': '/login', '/manager': '/manager', '/admin': '/admin' };
+    const railActive = { '/hostel': '/#find', '/login': '/login', '/login-student': '/login-student',
+      '/login-manager': '/login-manager', '/manager': '/manager', '/admin': '/admin' };
     for (const [p, href] of Object.entries(railActive)) {
       ok(`Phase 4: ${p} highlights its own rail icon (and nav pill)`,
         shellPages[p].html.includes('class="rail-btn is-active" href="' + href + '"') &&
@@ -1532,22 +1562,56 @@ async function main() {
       shellJs['hostel.js'].includes('Photos') && shellJs['hostel.js'].includes('Rental period not stated') &&
       shellJs['hostel.js'].includes('Write a review') && shellJs['hostel.js'].includes('Log in as a student') &&
       shellJs['hostel.js'].includes('escapeHtml'), 'detail render missing');
-    // Login page: both login cards, register form, optional phone, approval note.
+    // Chooser page: two links, no forms at all. Student page: student
+    // login + register only, with the wrong-role box and the approval-free
+    // note. Manager page: manager login + register only, approval note.
     const loginHtml = shellPages['/login'].html;
-    ok('login page keeps both login cards + register form + approval note',
-      loginHtml.includes('Log in as Manager') && loginHtml.includes('Log in as Student') &&
-      loginHtml.includes('id="mgrLogin"') && loginHtml.includes('id="stuLogin"') &&
-      loginHtml.includes('id="registerForm"') && loginHtml.includes('Password (at least 8 characters)') &&
-      loginHtml.includes('Display name') && loginHtml.includes('Phone (optional') &&
-      loginHtml.includes('waiting for master approval') &&
-      loginHtml.includes('value="manager"') && loginHtml.includes('value="student"'),
-      'login control missing');
-    const phoneTag = (loginHtml.match(/<input[^>]*name="phone"[^>]*>/) || [''])[0];
-    ok('register phone stays optional (label says optional, field has no required)',
-      loginHtml.includes('Phone (optional') && !phoneTag.includes('required'), phoneTag);
-    ok('login JS still posts to the auth endpoints and keeps the approval message',
-      shellJs['login.js'].includes('/api/auth/login') && shellJs['login.js'].includes('/api/auth/register') &&
-      shellJs['login.js'].includes('waiting for master approval'), 'login JS missing');
+    ok('chooser page has two role links and no form',
+      loginHtml.includes('href="/login-student"') && loginHtml.includes('href="/login-manager"') &&
+      !loginHtml.includes('<form') && !loginHtml.includes('id="mgrLogin"') && !loginHtml.includes('id="stuLogin"'),
+      'chooser control missing');
+    const stuHtml = shellPages['/login-student'].html;
+    ok('student login page keeps its login + register form, optional phone, wrong-role box',
+      stuHtml.includes('Log in as Student') && stuHtml.includes('id="stuLogin"') &&
+      stuHtml.includes('id="stuRegister"') && stuHtml.includes('Password (at least 8 characters)') &&
+      stuHtml.includes('Display name') && stuHtml.includes('Phone (optional') &&
+      stuHtml.includes('value="student"') && stuHtml.includes('id="wrongRoleBox"') &&
+      stuHtml.includes('id="wrongRoleLogout"') && stuHtml.includes('href="/login-manager"') &&
+      !stuHtml.includes('id="mgrLogin"') && !stuHtml.includes('id="mgrRegister"'),
+      'student login control missing');
+    const mgrHtml2 = shellPages['/login-manager'].html;
+    ok('manager login page keeps its login + register form, optional phone, approval note, wrong-role box',
+      mgrHtml2.includes('Log in as Manager') && mgrHtml2.includes('id="mgrLogin"') &&
+      mgrHtml2.includes('id="mgrRegister"') && mgrHtml2.includes('Password (at least 8 characters)') &&
+      mgrHtml2.includes('Display name') && mgrHtml2.includes('Phone (optional') &&
+      mgrHtml2.includes('waiting for master approval') && mgrHtml2.includes('value="manager"') &&
+      mgrHtml2.includes('id="wrongRoleBox"') && mgrHtml2.includes('id="wrongRoleLogout"') &&
+      mgrHtml2.includes('href="/login-student"') &&
+      !mgrHtml2.includes('id="stuLogin"') && !mgrHtml2.includes('id="stuRegister"'),
+      'manager login control missing');
+    for (const [p, html] of [['/login-student', stuHtml], ['/login-manager', mgrHtml2]]) {
+      const phoneTag = (html.match(/<input[^>]*name="phone"[^>]*>/) || [''])[0];
+      ok(`register phone stays optional on ${p} (label says optional, field has no required)`,
+        html.includes('Phone (optional') && !phoneTag.includes('required'), phoneTag);
+    }
+    ok('student login JS posts to the auth endpoints, refuses manager accounts, guards the wrong role',
+      shellJs['login-student.js'].includes('/api/auth/login') &&
+      shellJs['login-student.js'].includes('/api/auth/register') &&
+      shellJs['login-student.js'].includes('That account is a Manager account') &&
+      shellJs['login-student.js'].includes('wrongRoleBox') &&
+      shellJs['login-student.js'].includes("window.location.href = '/'"),
+      'student login JS missing');
+    ok('manager login JS posts to the auth endpoints, refuses student accounts, guards the wrong role',
+      shellJs['login-manager.js'].includes('/api/auth/login') &&
+      shellJs['login-manager.js'].includes('/api/auth/register') &&
+      shellJs['login-manager.js'].includes('That account is a Student account') &&
+      shellJs['login-manager.js'].includes('wrongRoleBox') &&
+      shellJs['login-manager.js'].includes("window.location.href = '/manager'"),
+      'manager login JS missing');
+    ok('shared shell JS carries the avatar + bell + log-out for the login pages',
+      shellJs['shell.js'].includes('loadShellUser') && shellJs['shell.js'].includes('/api/auth/me') &&
+      shellJs['shell.js'].includes('navLogoutBtn') && shellJs['shell.js'].includes('bellBtn'),
+      'shell JS missing');
     // Manager page: my-hostels, form, reviews anchor, photo upload, status line.
     const p4MgrHtml = shellPages['/manager'].html;
     ok('manager page keeps my-hostels, form, reviews anchor, photo note, status line',
@@ -1586,13 +1650,24 @@ async function main() {
       shellJs['admin.js'].includes('Source note (required to verify)') &&
       shellJs['admin.js'].includes('X-Master-Code') && shellJs['admin.js'].includes('Overturn — approve') &&
       shellJs['admin.js'].includes('escapeHtml'), 'admin JS missing');
-    // Shell JS on all four pages: avatar from /api/auth/me + bell + log-out.
+    // Shell JS on all pages: avatar from /api/auth/me + bell + log-out.
+    // The two login pages get their shell from the shared shell.js (they
+    // load it), so the per-file check covers the files that carry the
+    // shell, and a separate check proves the login pages load shell.js.
     for (const [p, js] of Object.entries(shellJs)) {
+      if (p === 'login-student.js' || p === 'login-manager.js') continue;
       ok(`Phase 4 shell JS on ${p}: avatar from /api/auth/me + bell + log-out`,
         js.includes('loadShellUser') && js.includes('/api/auth/me') && js.includes('avatarName') &&
         js.includes('bellBtn') && js.includes('navLogoutBtn') && js.includes('/api/auth/logout'),
         'shell JS missing in ' + p);
     }
+    ok('Phase 4: both login pages load the shared shell.js (avatar + bell + log-out)',
+      stuHtml.includes('<script src="/shell.js"></script>') &&
+      mgrHtml2.includes('<script src="/shell.js"></script>') &&
+      shellJs['shell.js'].includes('loadShellUser') && shellJs['shell.js'].includes('/api/auth/me') &&
+      shellJs['shell.js'].includes('avatarName') && shellJs['shell.js'].includes('bellBtn') &&
+      shellJs['shell.js'].includes('navLogoutBtn') && shellJs['shell.js'].includes('/api/auth/logout'),
+      'login pages do not load shell.js');
     ok('Phase 4 CSS: page-head + login grid + field grid + nav log-out hidden rule',
       css.includes('.page-head h1') && css.includes('.login-grid') &&
       css.includes('.field-grid') && css.includes('.nav-logout[hidden]'),
@@ -1720,9 +1795,11 @@ async function main() {
       appJsFile.includes('<a href="/hostel?id=${l.id}" data-detail='),
       'placeholder href found');
     const allPagesHtml = [indexHtml, shellPages['/hostel'].html, shellPages['/login'].html,
+      shellPages['/login-student'].html, shellPages['/login-manager'].html,
       shellPages['/manager'].html, shellPages['/admin'].html].join('\n');
     const allHrefs = [...allPagesHtml.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
-    const hrefOk = h => h === '/' || h === '/login' || h === '/manager' || h === '/admin' ||
+    const hrefOk = h => h === '/' || h === '/login' || h === '/login-student' || h === '/login-manager' ||
+      h === '/manager' || h === '/admin' ||
       h === '/styles.css' || h.startsWith('/#') || h.startsWith('#') || h.startsWith('/hostel?id=');
     ok('Phase 5: every link in every page points at a real route or in-page anchor',
       allHrefs.length > 0 && allHrefs.every(hrefOk), [...new Set(allHrefs)]);
@@ -1732,9 +1809,14 @@ async function main() {
       httpsCount === 1 && shellJs['hostel.js'].includes('https://www.google.com/maps/search/?api=1&query='),
       'unexpected external URL in page JS');
     const idPairs = [['app.js', indexHtml], ['hostel.js', shellPages['/hostel'].html],
-      ['login.js', shellPages['/login'].html], ['manager.js', shellPages['/manager'].html],
+      ['login-student.js', shellPages['/login-student'].html],
+      ['login-manager.js', shellPages['/login-manager'].html],
+      ['shell.js', shellPages['/login'].html],
+      ['manager.js', shellPages['/manager'].html],
       ['admin.js', shellPages['/admin'].html]];
-    const jsSrc = { 'app.js': appJsFile, 'hostel.js': shellJs['hostel.js'], 'login.js': shellJs['login.js'],
+    const jsSrc = { 'app.js': appJsFile, 'hostel.js': shellJs['hostel.js'],
+      'login-student.js': shellJs['login-student.js'], 'login-manager.js': shellJs['login-manager.js'],
+      'shell.js': shellJs['shell.js'],
       'manager.js': shellJs['manager.js'], 'admin.js': shellJs['admin.js'] };
     const idProblems = [];
     for (const [f, html] of idPairs) {
@@ -1781,7 +1863,8 @@ async function main() {
     // The public submit path is gone end to end: no endpoint, no form,
     // no nav link on any page. The manager add-hostel flow still works.
     const noSubmitPages = { '/': indexHtml, '/hostel': shellPages['/hostel'].html,
-      '/login': shellPages['/login'].html, '/manager': shellPages['/manager'].html,
+      '/login': shellPages['/login'].html, '/login-student': shellPages['/login-student'].html,
+      '/login-manager': shellPages['/login-manager'].html, '/manager': shellPages['/manager'].html,
       '/admin': shellPages['/admin'].html };
     for (const [p, html] of Object.entries(noSubmitPages)) {
       ok(`Submit removal: no Submit link or form on ${p}`,
@@ -1811,6 +1894,336 @@ async function main() {
     const remSearch = await get('/api/listings?city=Peshawar');
     ok('Submit removal: the manager-added hostel shows in public search',
       remSearch.listings.some(l => l.id === remCreate.d.listing.id), remSearch.listings.map(l => l.id));
+
+    // ---- 21. Login split (2026-11-07) + testing-only single session ----
+    // Student and manager login live on totally separate pages now:
+    // /login-student (student login + register only) and /login-manager
+    // (manager login + register only); /login is a chooser with two links
+    // and no form. SINGLE_SESSION=1 (testing only, default off) makes
+    // every login kill all other sessions; off, a login touches nobody
+    // else's session.
+    const getText = async p => (await fetch(BASE + p)).text();
+    const splitStu = await getText('/login-student');
+    const splitMgr = await getText('/login-manager');
+    const splitChooser = await getText('/login');
+    ok('login split: student page has exactly one login form (student) + one register form',
+      (splitStu.match(/<form/g) || []).length === 2 &&
+      splitStu.includes('id="stuLogin"') && splitStu.includes('id="stuRegister"'),
+      (splitStu.match(/<form/g) || []).length);
+    ok('login split: manager page has exactly one login form (manager) + one register form',
+      (splitMgr.match(/<form/g) || []).length === 2 &&
+      splitMgr.includes('id="mgrLogin"') && splitMgr.includes('id="mgrRegister"'),
+      (splitMgr.match(/<form/g) || []).length);
+    ok('login split: chooser has zero forms',
+      !splitChooser.includes('<form'), splitChooser.slice(0, 120));
+    ok('login split: no page says "Manager / Student" any more (avatar or link)',
+      !splitStu.includes('Manager / Student') && !splitMgr.includes('Manager / Student') &&
+      !splitChooser.includes('Manager / Student') && !indexHtml.includes('Manager / Student') &&
+      !shellPages['/manager'].html.includes('Manager / Student') &&
+      !shellPages['/admin'].html.includes('Manager / Student') &&
+      !shellPages['/hostel'].html.includes('Manager / Student'),
+      'mixed-role label still present');
+    // Fresh accounts for the split tests (own Gmails, no interference
+    // with earlier sections).
+    const splitStuReg = await reg('split-stu@example.com', 'student', 'splitpass1', nextIp());
+    ok('login split: student test account registers active',
+      splitStuReg.status === 201 && splitStuReg.d.status === 'active', splitStuReg);
+    const splitMgrReg = await reg('split-mgr@example.com', 'manager', 'splitpass1', nextIp());
+    ok('login split: manager test account registers pending',
+      splitMgrReg.status === 201 && splitMgrReg.d.status === 'pending', splitMgrReg);
+    await masterPost('/api/master/managers/decide', { user_id: splitMgrReg.d.id, decision: 'approve' }, MASTER);
+    const splitStuLogin = await login('split-stu@example.com', 'splitpass1', nextIp());
+    const splitMgrLogin = await login('split-mgr@example.com', 'splitpass1', nextIp());
+    ok('login split: both test accounts can log in',
+      splitStuLogin.status === 200 && splitMgrLogin.status === 200,
+      { s: splitStuLogin.status, m: splitMgrLogin.status });
+    // (d) Flag OFF (this server): the other session survives a new login.
+    const splitMeStu = await me(splitStuLogin.cookie);
+    ok('login split: with SINGLE_SESSION off, the student session survives the manager login',
+      splitMeStu.status === 200 && splitMeStu.d.role === 'student', splitMeStu);
+    const splitMeMgr = await me(splitMgrLogin.cookie);
+    ok('login split: with SINGLE_SESSION off, the manager session is live too',
+      splitMeMgr.status === 200 && splitMeMgr.d.role === 'manager', splitMeMgr);
+    // (c) Flag ON: a second server with SINGLE_SESSION=1 — logging in as
+    // one role kills the other role's session, and vice versa.
+    const SS_PORT = 3098;
+    const SS_DB = '/tmp/hostel-test-ss-' + process.pid + '.sqlite';
+    const SS_UPLOADS = '/tmp/hostel-test-ss-uploads-' + process.pid;
+    const SS_BASE = 'http://127.0.0.1:' + SS_PORT;
+    const ssReq = (method, p, opts = {}) => new Promise((resolve, reject) => {
+      const r = httpMod.request({ host: '127.0.0.1', port: SS_PORT, path: p, method,
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } }, res => {
+        let s = ''; res.on('data', c => { s += c; }); res.on('end', () => {
+          let d; try { d = JSON.parse(s); } catch { d = s; }
+          const sc = res.headers['set-cookie'];
+          resolve({ status: res.statusCode, d,
+            cookie: Array.isArray(sc) && sc[0] ? sc[0].split(';')[0] : (sc ? sc.split(';')[0] : null) });
+        });
+      });
+      r.on('error', reject);
+      if (opts.body !== undefined) r.write(JSON.stringify(opts.body));
+      r.end();
+    });
+    const ssSrv = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+      env: { ...process.env, PORT: String(SS_PORT), DB_FILE: SS_DB, UPLOADS_DIR: SS_UPLOADS,
+        ADMIN_CODE: 'test-admin-code', LOGIN_LOCK_SECONDS: '2', SINGLE_SESSION: '1' },
+      stdio: 'ignore',
+    });
+    try {
+      for (let i = 0; i < 50; i++) {
+        try { const r = await fetch(SS_BASE + '/'); if (r.ok) break; } catch {}
+        await new Promise(r => setTimeout(r, 200));
+      }
+      const ssReg = (gmail, role) => ssReq('POST', '/api/auth/register',
+        { body: { gmail, password: 'splitpass1', display_name: gmail.split('@')[0], phone: '03001234567', role },
+          headers: { 'X-Forwarded-For': nextIp() } });
+      const ssLogin = gmail => ssReq('POST', '/api/auth/login',
+        { body: { gmail, password: 'splitpass1' }, headers: { 'X-Forwarded-For': nextIp() } });
+      const ssMe = cookie => ssReq('GET', '/api/auth/me', { headers: cookie ? { Cookie: cookie } : {} });
+      const ssRegStu = await ssReg('ss-stu@example.com', 'student');
+      const ssRegMgr = await ssReg('ss-mgr@example.com', 'manager');
+      ok('single session ON: both accounts register on the flag-on server',
+        ssRegStu.status === 201 && ssRegMgr.status === 201, { s: ssRegStu.status, m: ssRegMgr.status });
+      await ssReq('POST', '/api/master/managers/decide',
+        { body: { user_id: ssRegMgr.d.id, decision: 'approve' }, headers: { 'X-Master-Code': MASTER } });
+      const ssStu1 = await ssLogin('ss-stu@example.com');
+      ok('single session ON: student logs in', ssStu1.status === 200 && !!ssStu1.cookie, ssStu1);
+      const ssMeBefore = await ssMe(ssStu1.cookie);
+      ok('single session ON: student session is live before the manager login',
+        ssMeBefore.status === 200, ssMeBefore);
+      const ssMgr1 = await ssLogin('ss-mgr@example.com');
+      ok('single session ON: manager logs in', ssMgr1.status === 200 && !!ssMgr1.cookie, ssMgr1);
+      const ssMeStuAfter = await ssMe(ssStu1.cookie);
+      ok('single session ON: manager login kills the student session (me -> 401)',
+        ssMeStuAfter.status === 401, ssMeStuAfter);
+      const ssMeMgrAfter = await ssMe(ssMgr1.cookie);
+      ok('single session ON: the manager session itself is live',
+        ssMeMgrAfter.status === 200 && ssMeMgrAfter.d.role === 'manager', ssMeMgrAfter);
+      const ssStu2 = await ssLogin('ss-stu@example.com');
+      const ssMeMgrAfter2 = await ssMe(ssMgr1.cookie);
+      ok('single session ON: student login kills the manager session back (me -> 401)',
+        ssStu2.status === 200 && ssMeMgrAfter2.status === 401, ssMeMgrAfter2);
+      const ssMeStuAfter2 = await ssMe(ssStu2.cookie);
+      ok('single session ON: the new student session is live',
+        ssMeStuAfter2.status === 200 && ssMeStuAfter2.d.role === 'student', ssMeStuAfter2);
+    } finally {
+      ssSrv.kill();
+      try { fs.unlinkSync(SS_DB); fs.unlinkSync(SS_DB + '-wal'); fs.unlinkSync(SS_DB + '-shm'); } catch {}
+      try { fs.rmSync(SS_UPLOADS, { recursive: true, force: true }); } catch {}
+    }
+    // (b) + (e) Browser flows (jsdom): the right login redirects to the
+    // right place, the wrong role gets the log-out box, and a wrong-role
+    // account typed into a page is refused with a plain message.
+    let jsdomMod = null;
+    try { jsdomMod = require('/home/hatch/workspace/register-bug-repro/node_modules/jsdom'); }
+    catch (e1) { try { jsdomMod = require('jsdom'); } catch (e2) { /* jsdom not installed */ } }
+    if (!jsdomMod) {
+      console.log('  SKIP - login-split jsdom tests (jsdom not installed on this machine)');
+    } else {
+      const { JSDOM, VirtualConsole } = jsdomMod;
+      const pageErrors = [];
+      process.on('unhandledRejection', e => pageErrors.push(e && e.message ? e.message : String(e)));
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      function stubNavigation(html) {
+        const out = html.replace(/window\.location\.href = ('[^']+');/g, 'window.__redirectTo($1);');
+        return { html: out, stubbed: out.includes('__redirectTo') };
+      }
+      function inlineScripts(html, files) {
+        let out = html;
+        for (const f of files) {
+          const src = fs.readFileSync(path.join(__dirname, 'public', f), 'utf8');
+          out = out.replace(`<script src="/${f}"></script>`, '<script>\n' + src + '\n</script>');
+        }
+        return out;
+      }
+      // Mock /api/auth/me for the guard tests; everything else goes to
+      // the real test server with its own IP (rate limits stay out of
+      // the way). Node fetch keeps no cookies, so a login inside jsdom
+      // never leaks a live session into later checks.
+      function drivePage(html, pageUrl, meObj, ip) {
+        const redirects = [];
+        const jsdomErrors = [];
+        const vc = new VirtualConsole();
+        vc.on('jsdomError', e => jsdomErrors.push(e && e.message ? e.message : String(e)));
+        const dom = new JSDOM(html, { url: pageUrl, runScripts: 'dangerously', virtualConsole: vc,
+          beforeParse(window) {
+            window.__redirects = redirects;
+            window.__redirectTo = u => redirects.push(String(u));
+            window.fetch = (input, init) => {
+              const u = typeof input === 'string' ? new URL(input, pageUrl).toString() : String(input);
+              if (u.endsWith('/api/auth/me')) {
+                return Promise.resolve(meObj
+                  ? { ok: true, status: 200, json: async () => meObj }
+                  : { ok: false, status: 401, json: async () => ({ error: 'not logged in' }) });
+              }
+              const headers = { ...(init && init.headers ? init.headers : {}), 'X-Forwarded-For': ip };
+              return fetch(u, { ...init, headers });
+            };
+          } });
+        return { dom, redirects, jsdomErrors };
+      }
+      const stuRaw = fs.readFileSync(path.join(__dirname, 'public', 'login-student.html'), 'utf8');
+      const stuStub = stubNavigation(inlineScripts(stuRaw, ['shell.js', 'login-student.js']));
+      ok('login split: student page navigation sink stubbed (test harness)', stuStub.stubbed,
+        'window.location.href not found in login-student page');
+      const mgrRaw = fs.readFileSync(path.join(__dirname, 'public', 'login-manager.html'), 'utf8');
+      const mgrStub = stubNavigation(inlineScripts(mgrRaw, ['shell.js', 'login-manager.js']));
+      ok('login split: manager page navigation sink stubbed (test harness)', mgrStub.stubbed,
+        'window.location.href not found in login-manager page');
+      const stuMe = { id: 901, display_name: 'Split Stu', role: 'student', status: 'active' };
+      const mgrMe = { id: 902, display_name: 'Split Mgr', role: 'manager', status: 'active' };
+      // (e1) Student page, logged out: forms visible, no wrong-role box.
+      {
+        const p = drivePage(stuStub.html, BASE + '/login-student', null, nextIp());
+        await sleep(500);
+        const doc = p.dom.window.document;
+        ok('login split: student page while logged out shows the forms, no wrong-role box',
+          doc.getElementById('loginForms').hidden === false &&
+          doc.getElementById('wrongRoleBox').hidden === true && p.redirects.length === 0 &&
+          p.jsdomErrors.length === 0, 'redirects=' + JSON.stringify(p.redirects) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (e2) Student page, logged in as a manager: forms hidden, box shown.
+      {
+        const p = drivePage(stuStub.html, BASE + '/login-student', mgrMe, nextIp());
+        await sleep(500);
+        const doc = p.dom.window.document;
+        ok('login split: student page while logged in as a manager shows the log-out box, not the forms',
+          doc.getElementById('loginForms').hidden === true &&
+          doc.getElementById('wrongRoleBox').hidden === false &&
+          doc.getElementById('wrongRoleText').textContent.includes('Manager') &&
+          doc.getElementById('wrongRoleText').textContent.includes('Log out to log in as a Student') &&
+          p.redirects.length === 0 && p.jsdomErrors.length === 0,
+          'text=' + JSON.stringify(doc.getElementById('wrongRoleText').textContent) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (e3) Student page, logged in as a student: sent home.
+      {
+        const p = drivePage(stuStub.html, BASE + '/login-student', stuMe, nextIp());
+        await sleep(500);
+        ok('login split: student page while logged in as a student redirects home',
+          p.redirects.length === 1 && p.redirects[0] === '/' && p.jsdomErrors.length === 0,
+          'redirects=' + JSON.stringify(p.redirects) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (e4) Manager page, logged in as a student: forms hidden, box shown.
+      {
+        const p = drivePage(mgrStub.html, BASE + '/login-manager', stuMe, nextIp());
+        await sleep(500);
+        const doc = p.dom.window.document;
+        ok('login split: manager page while logged in as a student shows the log-out box, not the forms',
+          doc.getElementById('loginForms').hidden === true &&
+          doc.getElementById('wrongRoleBox').hidden === false &&
+          doc.getElementById('wrongRoleText').textContent.includes('Student') &&
+          doc.getElementById('wrongRoleText').textContent.includes('Log out to log in as a Manager') &&
+          p.redirects.length === 0 && p.jsdomErrors.length === 0,
+          'text=' + JSON.stringify(doc.getElementById('wrongRoleText').textContent) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (e5) Manager page, logged in as a manager: sent to the portal.
+      {
+        const p = drivePage(mgrStub.html, BASE + '/login-manager', mgrMe, nextIp());
+        await sleep(500);
+        ok('login split: manager page while logged in as a manager redirects to the portal',
+          p.redirects.length === 1 && p.redirects[0] === '/manager' && p.jsdomErrors.length === 0,
+          'redirects=' + JSON.stringify(p.redirects) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (b1) Student login on the student page redirects home.
+      {
+        const p = drivePage(stuStub.html, BASE + '/login-student', null, nextIp());
+        await sleep(300);
+        const doc = p.dom.window.document;
+        doc.querySelector('#stuLogin input[name="gmail"]').value = 'split-stu@example.com';
+        doc.querySelector('#stuLogin input[name="password"]').value = 'splitpass1';
+        doc.getElementById('stuLogin').dispatchEvent(new p.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await sleep(800);
+        ok('login split: student login on the student page redirects home',
+          p.redirects.length === 1 && p.redirects[0] === '/' && p.jsdomErrors.length === 0,
+          'redirects=' + JSON.stringify(p.redirects) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (b2) Manager account typed into the student page is refused.
+      {
+        const p = drivePage(stuStub.html, BASE + '/login-student', null, nextIp());
+        await sleep(300);
+        const doc = p.dom.window.document;
+        doc.querySelector('#stuLogin input[name="gmail"]').value = 'split-mgr@example.com';
+        doc.querySelector('#stuLogin input[name="password"]').value = 'splitpass1';
+        doc.getElementById('stuLogin').dispatchEvent(new p.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await sleep(800);
+        ok('login split: manager account on the student page is refused, no redirect',
+          p.redirects.length === 0 &&
+          doc.getElementById('stuMsg').textContent.includes('Manager account') &&
+          p.jsdomErrors.length === 0,
+          'msg=' + JSON.stringify(doc.getElementById('stuMsg').textContent) + ' redirects=' + JSON.stringify(p.redirects) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (b3) Manager login on the manager page redirects to the portal.
+      {
+        const p = drivePage(mgrStub.html, BASE + '/login-manager', null, nextIp());
+        await sleep(300);
+        const doc = p.dom.window.document;
+        doc.querySelector('#mgrLogin input[name="gmail"]').value = 'split-mgr@example.com';
+        doc.querySelector('#mgrLogin input[name="password"]').value = 'splitpass1';
+        doc.getElementById('mgrLogin').dispatchEvent(new p.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await sleep(800);
+        ok('login split: manager login on the manager page redirects to the portal',
+          p.redirects.length === 1 && p.redirects[0] === '/manager' && p.jsdomErrors.length === 0,
+          'redirects=' + JSON.stringify(p.redirects) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (b4) Student account typed into the manager page is refused.
+      {
+        const p = drivePage(mgrStub.html, BASE + '/login-manager', null, nextIp());
+        await sleep(300);
+        const doc = p.dom.window.document;
+        doc.querySelector('#mgrLogin input[name="gmail"]').value = 'split-stu@example.com';
+        doc.querySelector('#mgrLogin input[name="password"]').value = 'splitpass1';
+        doc.getElementById('mgrLogin').dispatchEvent(new p.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await sleep(800);
+        ok('login split: student account on the manager page is refused, no redirect',
+          p.redirects.length === 0 &&
+          doc.getElementById('mgrMsg').textContent.includes('Student account') &&
+          p.jsdomErrors.length === 0,
+          'msg=' + JSON.stringify(doc.getElementById('mgrMsg').textContent) + ' redirects=' + JSON.stringify(p.redirects) + ' errors=' + JSON.stringify(p.jsdomErrors));
+        p.dom.window.close();
+      }
+      // (b5) Register as a student from the student page, then log in.
+      {
+        const p = drivePage(stuStub.html, BASE + '/login-student', null, nextIp());
+        await sleep(300);
+        const doc = p.dom.window.document;
+        doc.querySelector('#stuRegister input[name="gmail"]').value = 'split-reg-stu@example.com';
+        doc.querySelector('#stuRegister input[name="password"]').value = 'splitpass1';
+        doc.querySelector('#stuRegister input[name="display_name"]').value = 'Split Reg Stu';
+        doc.getElementById('stuRegister').dispatchEvent(new p.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await sleep(800);
+        const regOk = doc.getElementById('regMsg').textContent.includes('You can log in now.');
+        p.dom.window.close();
+        const l = await login('split-reg-stu@example.com', 'splitpass1', nextIp());
+        const m = await me(l.cookie);
+        ok('login split: student register on the student page creates a student account',
+          regOk && l.status === 200 && m.d.role === 'student', { regOk, login: l.status, role: m.d && m.d.role });
+      }
+      // (b6) Register as a manager from the manager page: pending, cannot log in yet.
+      {
+        const p = drivePage(mgrStub.html, BASE + '/login-manager', null, nextIp());
+        await sleep(300);
+        const doc = p.dom.window.document;
+        doc.querySelector('#mgrRegister input[name="gmail"]').value = 'split-reg-mgr@example.com';
+        doc.querySelector('#mgrRegister input[name="password"]').value = 'splitpass1';
+        doc.querySelector('#mgrRegister input[name="display_name"]').value = 'Split Reg Mgr';
+        doc.getElementById('mgrRegister').dispatchEvent(new p.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+        await sleep(800);
+        const regOk = doc.getElementById('regMsg').textContent.includes('waiting for master approval');
+        p.dom.window.close();
+        const l = await login('split-reg-mgr@example.com', 'splitpass1', nextIp());
+        ok('login split: manager register on the manager page creates a pending account (cannot log in yet)',
+          regOk && l.status === 401, { regOk, login: l.status });
+      }
+      ok('login split: no unhandled rejection from any page handler', pageErrors.length === 0, JSON.stringify(pageErrors));
+    }
 
     console.log(`\n${pass} passed, ${fail} failed.`);
     if (fail) process.exitCode = 1; else console.log('ALL TESTS PASS');
