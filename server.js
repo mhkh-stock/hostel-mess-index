@@ -33,6 +33,12 @@ if (!ADMIN_CODE) { console.error('FATAL: ADMIN_CODE env var is required — set 
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const SESSION_TTL_SECONDS = 86400; // 24h
 const LOGIN_LOCK_SECONDS = Number(process.env.LOGIN_LOCK_SECONDS || 900); // 15 min
+// Testing-only single session: SINGLE_SESSION=1 makes every login
+// invalidate ALL other sessions (any user, any browser), so while
+// testing on one PC, logging in as one role logs the other role out.
+// DEFAULT OFF: on the deployed site a login never touches anyone
+// else's session — real users are separate people on separate devices.
+const SINGLE_SESSION = process.env.SINGLE_SESSION === '1';
 const MAX_FAILED_LOGINS = 5;
 const REGISTER_PER_HOUR = 3;
 const REGISTER_WINDOW_MS = 60 * 60 * 1000;
@@ -1028,12 +1034,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && p === '/') return serveFile(res, 'index.html', 'text/html');
   if (req.method === 'GET' && p === '/admin') return serveFile(res, 'admin.html', 'text/html');
   if (req.method === 'GET' && p === '/login') return serveFile(res, 'login.html', 'text/html');
+  if (req.method === 'GET' && p === '/login-student') return serveFile(res, 'login-student.html', 'text/html');
+  if (req.method === 'GET' && p === '/login-manager') return serveFile(res, 'login-manager.html', 'text/html');
   if (req.method === 'GET' && p === '/manager') return serveFile(res, 'manager.html', 'text/html');
   if (req.method === 'GET' && p === '/hostel') return serveFile(res, 'hostel.html', 'text/html');
   if (req.method === 'GET' && p === '/hostel.js') return serveFile(res, 'hostel.js', 'text/javascript');
   if (req.method === 'GET' && p === '/app.js') return serveFile(res, 'app.js', 'text/javascript');
   if (req.method === 'GET' && p === '/admin.js') return serveFile(res, 'admin.js', 'text/javascript');
-  if (req.method === 'GET' && p === '/login.js') return serveFile(res, 'login.js', 'text/javascript');
+  if (req.method === 'GET' && p === '/login-student.js') return serveFile(res, 'login-student.js', 'text/javascript');
+  if (req.method === 'GET' && p === '/login-manager.js') return serveFile(res, 'login-manager.js', 'text/javascript');
+  if (req.method === 'GET' && p === '/shell.js') return serveFile(res, 'shell.js', 'text/javascript');
   if (req.method === 'GET' && p === '/manager.js') return serveFile(res, 'manager.js', 'text/javascript');
   if (req.method === 'GET' && p === '/styles.css') return serveFile(res, 'styles.css', 'text/css');
   if (req.method === 'GET' && p === '/health') return send(res, 200, { ok: true });
@@ -1097,6 +1107,11 @@ const server = http.createServer(async (req, res) => {
     }
     db.prepare('UPDATE users SET failed_attempts=0, locked_until=0 WHERE id=?').run(user.id);
     ipReset(ip);
+    // Testing-only single session (SINGLE_SESSION=1): one login at a
+    // time — every other session dies here, so logging in as one role
+    // logs the other role out while testing on one PC. The new session
+    // is created after this delete, so it always survives.
+    if (SINGLE_SESSION) db.prepare('DELETE FROM sessions').run();
     const cookie = setSessionCookie(res, user);
     return send(res, 200, { ok: true, user: publicUser(user) }, { 'Set-Cookie': cookie });
   }
