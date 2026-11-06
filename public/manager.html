@@ -4,9 +4,45 @@
 <title>Manager portal — Hostel + Mess Index</title>
 <link rel="stylesheet" href="/styles.css"></head>
 <body>
-<header><h1>Manager portal — Hostel + Mess Index</h1>
-<p class="sub">Run your own hostels: fees, map, contact, rental period.</p></header>
-<main>
+<header class="topnav">
+  <a class="brand" href="/">
+    <span class="logo-dot" aria-hidden="true">H</span>
+    <span class="brand-name">Hostel + Mess Index</span>
+  </a>
+  <nav class="nav-pills" aria-label="Sections">
+    <a class="nav-pill" href="/">⌂ <span>Home</span></a>
+    <a class="nav-pill" href="/#find">⚲ <span>Search</span></a>
+    <a class="nav-pill" href="/#compare">▤ <span>Compare</span></a>
+    <a class="nav-pill" href="/#submit">✎ <span>Submit</span></a>
+    <a class="nav-pill is-active" href="/manager">⚙ <span>Manager</span></a>
+  </nav>
+  <div class="nav-right">
+    <a class="icon-btn" href="/#find" aria-label="Search hostels"><span aria-hidden="true">⚲</span></a>
+    <div class="bell-wrap">
+      <button class="icon-btn" id="bellBtn" type="button" aria-label="Notifications" aria-expanded="false"><span class="icon-bell" aria-hidden="true"></span></button>
+      <div class="bell-pop" id="bellPop" hidden>
+        <p><b>Notifications</b></p>
+        <p>No new notifications.</p>
+      </div>
+    </div>
+    <a class="avatar" id="avatarLink" href="/login">
+      <span class="avatar-circle" id="avatarInitial" aria-hidden="true">H</span>
+      <span class="avatar-text"><span id="avatarName">Log in</span><span class="avatar-role" id="avatarRole">Manager / Student</span></span>
+    </a>
+    <button class="pill pill-light nav-logout" id="navLogoutBtn" type="button" hidden>Log out</button>
+  </div>
+</header>
+<div class="shell">
+  <nav class="rail" aria-label="Main">
+    <a class="rail-btn" href="/" aria-label="Home" title="Home">⌂</a>
+    <a class="rail-btn" href="/#find" aria-label="Search hostels" title="Search hostels">⚲</a>
+    <a class="rail-btn" href="/#compare" aria-label="Compare hostels" title="Compare hostels">▤</a>
+    <a class="rail-btn" href="/#submit" aria-label="Submit a hostel" title="Submit a hostel">✎</a>
+    <a class="rail-btn is-active" href="/manager" aria-label="Manager portal" title="Manager portal">⚙</a>
+  </nav>
+  <main class="main">
+<section class="glass-card page-head"><h1>Manager portal — Hostel + Mess Index</h1>
+<p class="sub">Run your own hostels: fees, map, contact, rental period.</p></section>
 <section class="card" id="accountCard"><h2>Your account</h2><p id="accountStatus">Checking…</p>
 <p id="notLoggedIn" hidden>Please <a href="/login">log in as a manager</a> first.</p>
 <button id="logoutBtn" hidden>Log out</button></section>
@@ -16,7 +52,7 @@
 <p id="myCount"></p><div id="myList"></div>
 <button id="newBtn">Add a new hostel</button></section>
 
-<section class="card"><h2>Reviews on your hostels</h2>
+<section class="card" id="reviews"><h2>Reviews on your hostels</h2>
 <p>Pending reviews first. Approve or reject each one — a rejection needs a reason from the fixed list (spam, abusive language, personal data, off-topic, fake or staged). Rejected reviews are not deleted; the master can see them and overturn your decision. The listing page shows honestly how many reviews were not published.</p>
 <button id="loadReviewsBtn">Load reviews</button><p id="reviewsMsg"></p>
 <div id="reviewsList"></div></section>
@@ -49,22 +85,22 @@
 
 <h3>Location</h3>
 <label>Full street address <input name="address" placeholder="e.g. House 12, Street 3, University Road"></label>
-<label>Google Maps link (share or embed link from google.com/maps) <input name="maps_url" placeholder="https://www.google.com/maps/…"></label>
+<label>Google Maps link (share or embed link from google.com/maps) <input name="maps_url" placeholder="Paste a share link from google.com/maps"></label>
 <label>Latitude <input name="maps_lat" type="number" step="any"></label>
 <label>Longitude <input name="maps_lng" type="number" step="any"></label>
 <label>Plus Code <input name="plus_code" placeholder="e.g. C75C+VWV"></label>
 <label>Distance text (as stated by you — e.g. 1.5 km from UET Peshawar) <input name="distance_text"></label>
 
 <h3>Fees — leave a charge empty and it shows as “Not available”</h3>
-<div id="feeFields"></div>
+<div id="feeFields" class="field-grid"></div>
 <h4>Other charges</h4>
-<div id="otherCharges"></div>
+<div id="otherCharges" class="field-grid"></div>
 
 <h3>Room types — one row per room type you offer</h3>
-<div id="roomTypes"></div>
+<div id="roomTypes" class="field-grid"></div>
 
 <h3>Amenities — included, charged extra, or not available</h3>
-<div id="amenityFields"></div>
+<div id="amenityFields" class="field-grid"></div>
 
 <h3>Rules &amp; timings</h3>
 <label>Rules (one per line) <textarea name="rules" rows="4" placeholder="No guests after 10 PM&#10;No smoking"></textarea></label>
@@ -93,5 +129,6 @@
 </div>
 <p><a href="/">← Back to search</a> · <a href="/login">Login page</a></p>
 </main>
+</div>
 <script src="/manager.js"></script>
 </body></html>

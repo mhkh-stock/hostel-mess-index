@@ -4,18 +4,55 @@
 <title>Hostel details — Hostel + Mess Index</title>
 <link rel="stylesheet" href="/styles.css"></head>
 <body>
-<header><h1>Hostel + Mess Index</h1>
-<p class="sub">Full hostel details, fees, map and student reviews.</p></header>
-<main>
-<p><a href="/">← Back to search</a> · <a href="/login">Manager / Student login</a></p>
-<div id="detail"><p>Loading…</p></div>
-<section class="card" id="reviewsCard"><h2>Student reviews</h2>
-<p id="reviewSummary"></p>
-<p id="reviewLabel">Student review — the site has not verified this student lived here.</p>
-<div id="reviewList"></div>
-<div id="writeReview"></div>
-</section>
-<section class="card"><h2>Price history</h2><div id="history"></div></section>
-</main>
+<header class="topnav">
+  <a class="brand" href="/">
+    <span class="logo-dot" aria-hidden="true">H</span>
+    <span class="brand-name">Hostel + Mess Index</span>
+  </a>
+  <nav class="nav-pills" aria-label="Sections">
+    <a class="nav-pill" href="/">⌂ <span>Home</span></a>
+    <a class="nav-pill is-active" href="/#find">⚲ <span>Search</span></a>
+    <a class="nav-pill" href="/#compare">▤ <span>Compare</span></a>
+    <a class="nav-pill" href="/#submit">✎ <span>Submit</span></a>
+    <a class="nav-pill" href="/manager">⚙ <span>Manager</span></a>
+  </nav>
+  <div class="nav-right">
+    <a class="icon-btn" href="/#find" aria-label="Search hostels"><span aria-hidden="true">⚲</span></a>
+    <div class="bell-wrap">
+      <button class="icon-btn" id="bellBtn" type="button" aria-label="Notifications" aria-expanded="false"><span class="icon-bell" aria-hidden="true"></span></button>
+      <div class="bell-pop" id="bellPop" hidden>
+        <p><b>Notifications</b></p>
+        <p>No new notifications.</p>
+      </div>
+    </div>
+    <a class="avatar" id="avatarLink" href="/login">
+      <span class="avatar-circle" id="avatarInitial" aria-hidden="true">H</span>
+      <span class="avatar-text"><span id="avatarName">Log in</span><span class="avatar-role" id="avatarRole">Manager / Student</span></span>
+    </a>
+    <button class="pill pill-light nav-logout" id="navLogoutBtn" type="button" hidden>Log out</button>
+  </div>
+</header>
+<div class="shell">
+  <nav class="rail" aria-label="Main">
+    <a class="rail-btn" href="/" aria-label="Home" title="Home">⌂</a>
+    <a class="rail-btn is-active" href="/#find" aria-label="Search hostels" title="Search hostels">⚲</a>
+    <a class="rail-btn" href="/#compare" aria-label="Compare hostels" title="Compare hostels">▤</a>
+    <a class="rail-btn" href="/#submit" aria-label="Submit a hostel" title="Submit a hostel">✎</a>
+    <a class="rail-btn" href="/manager" aria-label="Manager portal" title="Manager portal">⚙</a>
+  </nav>
+  <main class="main">
+    <section class="glass-card page-head"><h1>Hostel + Mess Index</h1>
+    <p class="sub">Full hostel details, fees, map and student reviews.</p></section>
+    <p><a href="/">← Back to search</a> · <a href="/login">Manager / Student login</a></p>
+    <div id="detail" class="glass-card"><p>Loading…</p></div>
+    <section class="card" id="reviewsCard"><h2>Student reviews</h2>
+    <p id="reviewSummary"></p>
+    <p id="reviewLabel">Student review — the site has not verified this student lived here.</p>
+    <div id="reviewList"></div>
+    <div id="writeReview"></div>
+    </section>
+    <section class="card"><h2>Price history</h2><div id="history"></div></section>
+  </main>
+</div>
 <script src="/hostel.js"></script>
 </body></html>

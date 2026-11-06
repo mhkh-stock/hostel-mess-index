@@ -4,39 +4,80 @@
 <title>Log in — Hostel + Mess Index</title>
 <link rel="stylesheet" href="/styles.css"></head>
 <body>
-<header><h1>Log in — Hostel + Mess Index</h1>
-<p class="sub">Managers run their own hostels. Students write reviews.</p></header>
-<main>
-<section class="card"><h2>Log in as Manager</h2>
-<p>For hostel owners and wardens. Your account must be approved by the master before you can log in.</p>
-<form id="mgrLogin">
-<label>Gmail <input name="gmail" type="email" required></label>
-<label>Password <input name="password" type="password" required></label>
-<button>Log in as Manager</button>
-</form><p id="mgrMsg"></p>
-</section>
+<header class="topnav">
+  <a class="brand" href="/">
+    <span class="logo-dot" aria-hidden="true">H</span>
+    <span class="brand-name">Hostel + Mess Index</span>
+  </a>
+  <nav class="nav-pills" aria-label="Sections">
+    <a class="nav-pill" href="/">⌂ <span>Home</span></a>
+    <a class="nav-pill" href="/#find">⚲ <span>Search</span></a>
+    <a class="nav-pill" href="/#compare">▤ <span>Compare</span></a>
+    <a class="nav-pill" href="/#submit">✎ <span>Submit</span></a>
+    <a class="nav-pill" href="/manager">⚙ <span>Manager</span></a>
+    <a class="nav-pill is-active" href="/login">👤 <span>Log in</span></a>
+  </nav>
+  <div class="nav-right">
+    <a class="icon-btn" href="/#find" aria-label="Search hostels"><span aria-hidden="true">⚲</span></a>
+    <div class="bell-wrap">
+      <button class="icon-btn" id="bellBtn" type="button" aria-label="Notifications" aria-expanded="false"><span class="icon-bell" aria-hidden="true"></span></button>
+      <div class="bell-pop" id="bellPop" hidden>
+        <p><b>Notifications</b></p>
+        <p>No new notifications.</p>
+      </div>
+    </div>
+    <a class="avatar" id="avatarLink" href="/login">
+      <span class="avatar-circle" id="avatarInitial" aria-hidden="true">H</span>
+      <span class="avatar-text"><span id="avatarName">Log in</span><span class="avatar-role" id="avatarRole">Manager / Student</span></span>
+    </a>
+    <button class="pill pill-light nav-logout" id="navLogoutBtn" type="button" hidden>Log out</button>
+  </div>
+</header>
+<div class="shell">
+  <nav class="rail" aria-label="Main">
+    <a class="rail-btn" href="/" aria-label="Home" title="Home">⌂</a>
+    <a class="rail-btn" href="/#find" aria-label="Search hostels" title="Search hostels">⚲</a>
+    <a class="rail-btn" href="/#compare" aria-label="Compare hostels" title="Compare hostels">▤</a>
+    <a class="rail-btn" href="/#submit" aria-label="Submit a hostel" title="Submit a hostel">✎</a>
+    <a class="rail-btn" href="/manager" aria-label="Manager portal" title="Manager portal">⚙</a>
+    <a class="rail-btn is-active" href="/login" aria-label="Log in" title="Log in">👤</a>
+  </nav>
+  <main class="main">
+    <section class="glass-card page-head"><h1>Log in — Hostel + Mess Index</h1>
+    <p class="sub">Managers run their own hostels. Students write reviews.</p></section>
+    <div class="login-grid">
+    <section class="card"><h2>Log in as Manager</h2>
+    <p>For hostel owners and wardens. Your account must be approved by the master before you can log in.</p>
+    <form id="mgrLogin">
+    <label>Gmail <input name="gmail" type="email" required></label>
+    <label>Password <input name="password" type="password" required></label>
+    <button>Log in as Manager</button>
+    </form><p id="mgrMsg"></p>
+    </section>
 
-<section class="card"><h2>Log in as Student</h2>
-<p>For students who want to write reviews. Student accounts work right after registering.</p>
-<form id="stuLogin">
-<label>Gmail <input name="gmail" type="email" required></label>
-<label>Password <input name="password" type="password" required></label>
-<button>Log in as Student</button>
-</form><p id="stuMsg"></p>
-</section>
+    <section class="card"><h2>Log in as Student</h2>
+    <p>For students who want to write reviews. Student accounts work right after registering.</p>
+    <form id="stuLogin">
+    <label>Gmail <input name="gmail" type="email" required></label>
+    <label>Password <input name="password" type="password" required></label>
+    <button>Log in as Student</button>
+    </form><p id="stuMsg"></p>
+    </section>
+    </div>
 
-<section class="card"><h2>New here? Register</h2>
-<p>One account per Gmail. Managers: your account starts as <b>waiting for master approval</b> — you can log in after the master approves it. Students: your account works right away.</p>
-<form id="registerForm">
-<label>Gmail <input name="gmail" type="email" required></label>
-<label>Password (at least 8 characters) <input name="password" type="password" required></label>
-<label>Display name <input name="display_name" required></label>
-<label>Phone (optional, Pakistani mobile, 03XX-XXXXXXX) <input name="phone" placeholder="03001234567"></label>
-<label>I am a <select name="role"><option value="manager">Hostel manager</option><option value="student">Student</option></select></label>
-<button>Register</button>
-</form><p id="regMsg"></p>
-</section>
-<p><a href="/">← Back to search</a></p>
-</main>
+    <section class="card"><h2>New here? Register</h2>
+    <p>One account per Gmail. Managers: your account starts as <b>waiting for master approval</b> — you can log in after the master approves it. Students: your account works right away.</p>
+    <form id="registerForm">
+    <label>Gmail <input name="gmail" type="email" required></label>
+    <label>Password (at least 8 characters) <input name="password" type="password" required></label>
+    <label>Display name <input name="display_name" required></label>
+    <label>Phone (optional, Pakistani mobile, 03XX-XXXXXXX) <input name="phone" placeholder="03001234567"></label>
+    <label>I am a <select name="role"><option value="manager">Hostel manager</option><option value="student">Student</option></select></label>
+    <button>Register</button>
+    </form><p id="regMsg"></p>
+    </section>
+    <p><a href="/">← Back to search</a></p>
+  </main>
+</div>
 <script src="/login.js"></script>
 </body></html>

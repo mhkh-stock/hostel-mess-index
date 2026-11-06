@@ -4,31 +4,71 @@
 <title>Admin — Hostel + Mess Index</title>
 <link rel="stylesheet" href="/styles.css"></head>
 <body>
-<header><h1>Admin — Hostel + Mess Index</h1></header>
-<main>
-<section class="card">
-<label>Admin code <input id="code" type="password"></label>
-<button id="loadBtn">Load listings</button><p id="msg"></p>
-<div id="list"></div>
-</section>
-<section class="card">
-<h2>Pending managers</h2>
-<p>Manager accounts start pending and cannot log in until you approve them here.</p>
-<button id="loadPendingBtn">Load pending managers</button><p id="pendingMsg"></p>
-<div id="pendingList"></div>
-</section>
-<section class="card">
-<h2>Rejected reviews</h2>
-<p>Reviews a manager rejected, with the reason. Overturn one to approve it (it goes public) or hide an approved review. Rejected reviews are never deleted.</p>
-<button id="loadRejectedBtn">Load rejected reviews</button><p id="rejectedMsg"></p>
-<div id="rejectedList"></div>
-</section>
-<section class="card">
-<h2>Audit trail</h2>
-<p>Who did what, and when — manager approvals, listing changes, password resets.</p>
-<button id="loadAuditBtn">Load audit trail</button><p id="auditMsg"></p>
-<div id="auditList"></div>
-</section>
-</main>
+<header class="topnav">
+  <a class="brand" href="/">
+    <span class="logo-dot" aria-hidden="true">H</span>
+    <span class="brand-name">Hostel + Mess Index</span>
+  </a>
+  <nav class="nav-pills" aria-label="Sections">
+    <a class="nav-pill" href="/">⌂ <span>Home</span></a>
+    <a class="nav-pill" href="/#find">⚲ <span>Search</span></a>
+    <a class="nav-pill" href="/#compare">▤ <span>Compare</span></a>
+    <a class="nav-pill" href="/#submit">✎ <span>Submit</span></a>
+    <a class="nav-pill" href="/manager">⚙ <span>Manager</span></a>
+    <a class="nav-pill is-active" href="/admin">🛡 <span>Admin</span></a>
+  </nav>
+  <div class="nav-right">
+    <a class="icon-btn" href="/#find" aria-label="Search hostels"><span aria-hidden="true">⚲</span></a>
+    <div class="bell-wrap">
+      <button class="icon-btn" id="bellBtn" type="button" aria-label="Notifications" aria-expanded="false"><span class="icon-bell" aria-hidden="true"></span></button>
+      <div class="bell-pop" id="bellPop" hidden>
+        <p><b>Notifications</b></p>
+        <p>No new notifications.</p>
+      </div>
+    </div>
+    <a class="avatar" id="avatarLink" href="/login">
+      <span class="avatar-circle" id="avatarInitial" aria-hidden="true">H</span>
+      <span class="avatar-text"><span id="avatarName">Log in</span><span class="avatar-role" id="avatarRole">Manager / Student</span></span>
+    </a>
+    <button class="pill pill-light nav-logout" id="navLogoutBtn" type="button" hidden>Log out</button>
+  </div>
+</header>
+<div class="shell">
+  <nav class="rail" aria-label="Main">
+    <a class="rail-btn" href="/" aria-label="Home" title="Home">⌂</a>
+    <a class="rail-btn" href="/#find" aria-label="Search hostels" title="Search hostels">⚲</a>
+    <a class="rail-btn" href="/#compare" aria-label="Compare hostels" title="Compare hostels">▤</a>
+    <a class="rail-btn" href="/#submit" aria-label="Submit a hostel" title="Submit a hostel">✎</a>
+    <a class="rail-btn" href="/manager" aria-label="Manager portal" title="Manager portal">⚙</a>
+    <a class="rail-btn is-active" href="/admin" aria-label="Admin" title="Admin">🛡</a>
+  </nav>
+  <main class="main">
+    <section class="glass-card page-head"><h1>Admin — Hostel + Mess Index</h1>
+    <p class="sub">Master controls: verify listings, approve managers, overturn reviews, audit trail.</p></section>
+    <section class="card">
+    <label>Admin code <input id="code" type="password"></label>
+    <button id="loadBtn">Load listings</button><p id="msg"></p>
+    <div id="list"></div>
+    </section>
+    <section class="card">
+    <h2>Pending managers</h2>
+    <p>Manager accounts start pending and cannot log in until you approve them here.</p>
+    <button id="loadPendingBtn">Load pending managers</button><p id="pendingMsg"></p>
+    <div id="pendingList"></div>
+    </section>
+    <section class="card">
+    <h2>Rejected reviews</h2>
+    <p>Reviews a manager rejected, with the reason. Overturn one to approve it (it goes public) or hide an approved review. Rejected reviews are never deleted.</p>
+    <button id="loadRejectedBtn">Load rejected reviews</button><p id="rejectedMsg"></p>
+    <div id="rejectedList"></div>
+    </section>
+    <section class="card">
+    <h2>Audit trail</h2>
+    <p>Who did what, and when — manager approvals, listing changes, password resets.</p>
+    <button id="loadAuditBtn">Load audit trail</button><p id="auditMsg"></p>
+    <div id="auditList"></div>
+    </section>
+  </main>
+</div>
 <script src="/admin.js"></script>
 </body></html>
