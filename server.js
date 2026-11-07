@@ -651,12 +651,12 @@ function setSessionCookie(res, user) {
   db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(Math.floor(Date.now() / 1000));
   db.prepare('INSERT INTO sessions(user_id, token_hash, expires_at) VALUES(?,?,?)')
     .run(user.id, hmacHex(token, SESSION_SECRET), expiresAt);
-  return 'hostel_session=' + signToken(token) + '; HttpOnly; Path=/; SameSite=Lax; Max-Age=' + SESSION_TTL_SECONDS;
+  return 'hostel_session=' + signToken(token) + '; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=' + SESSION_TTL_SECONDS;
 }
 function clearSessionCookie(req, res) {
   const token = verifySignedToken(parseCookies(req).hostel_session);
   if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hmacHex(token, SESSION_SECRET));
-  return 'hostel_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0';
+  return 'hostel_session=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0';
 }
 function publicUser(u) {
   if (!u) return null;
