@@ -30,9 +30,11 @@ directly.
   edit until reinstated.
 - **Student** (Gmail + password, active right after registering):
   one review per hostel (rating + categories + text + up to 3
-  photos), edit it while pending, delete it. Cannot review without
-  logging in, cannot review the same hostel twice, cannot approve
-  anything, cannot see other students' Gmails.
+  photos), edit it while pending, delete it. Changes their own
+  password from the "Your account" card on the home page or a hostel
+  page (current + new + confirm, same endpoint managers use).
+  Cannot review without logging in, cannot review the same hostel
+  twice, cannot approve anything, cannot see other students' Gmails.
 - **Public (logged out)**: search, filters, calculator, compare,
   listing detail (fees, map, photos, approved reviews, contact),
   reference ranges. Cannot add a listing, review, or upload anything.
@@ -289,7 +291,7 @@ is honest about what it is:
 ```
 node server.js            # port 3034 (env PORT)
 DB_FILE=/tmp/hostel.sqlite UPLOADS_DIR=/tmp/hostel-uploads ADMIN_CODE=your-private-code node server.js
-node test.js              # 491 tests on a throwaway DB
+node test.js              # 509 tests on a throwaway DB
 ```
 
 `ADMIN_CODE` is **required** — the server exits with a FATAL message

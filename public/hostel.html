@@ -49,6 +49,14 @@
     <div id="reviewList"></div>
     <div id="writeReview"></div>
     </section>
+    <section class="card" id="studentAccountCard"><h2>Your account</h2><p id="studentAccountStatus">Checking…</p>
+    <p id="studentNotLoggedIn" hidden>Please <a href="/login-student">log in as a student</a> first.</p>
+    <form id="pwForm" hidden><h3>Change password</h3>
+    <p>Changing your password signs out every other browser and device at once.</p>
+    <label>Current password <input name="old_password" type="password" required minlength="8" autocomplete="current-password"></label>
+    <label>New password <input name="new_password" type="password" required minlength="8" autocomplete="new-password"></label>
+    <label>Confirm new password <input name="confirm_password" type="password" required minlength="8" autocomplete="new-password"></label>
+    <button>Change password</button></form><p id="pwMsg"></p></section>
     <section class="card"><h2>Price history</h2><div id="history"></div></section>
   </main>
 </div>

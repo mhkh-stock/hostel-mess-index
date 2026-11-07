@@ -146,6 +146,43 @@ async function load() {
 }
 load();
 
+// ---- Student change password (POST /api/auth/change-password) ----
+// Same form as the home page's "Your account" card (and the Manager
+// portal's, plus a confirm field checked here first so a typo never
+// reaches the server). The server rotates the session: this browser
+// stays logged in on a fresh cookie, every other browser/device is
+// signed out at once.
+function showStudentAccount(me) {
+  const card = $('studentAccountCard');
+  if (!card) return;
+  if (!me) {
+    $('studentAccountStatus').textContent = 'You are not logged in.';
+    $('studentNotLoggedIn').hidden = false;
+    return;
+  }
+  if (me.role === 'student') {
+    $('studentAccountStatus').textContent = 'Logged in as ' + (me.display_name || 'Student') + ' — Student.';
+    $('pwForm').hidden = false;
+  } else {
+    $('studentAccountStatus').textContent = 'You are logged in as ' + roleLabel(me.role) + '. This change-password form is for students — managers change their password from the Manager portal.';
+  }
+}
+const studentPwForm = $('pwForm');
+if (studentPwForm) studentPwForm.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  if (fd.get('new_password') !== fd.get('confirm_password')) {
+    $('pwMsg').textContent = 'Error: the new passwords do not match.';
+    return;
+  }
+  const r = await fetch('/api/auth/change-password', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: fd.get('old_password'), new_password: fd.get('new_password') }) });
+  const d = await r.json().catch(() => ({}));
+  $('pwMsg').textContent = r.ok ? 'Password changed — every other browser and device is signed out.' : 'Error: ' + (d.error || 'could not change password');
+  if (r.ok) ev.target.reset();
+});
+
 // ---- Phase 4 shell: topnav avatar + bell + log-out (same shell as home). ----
 // Logged out: the avatar keeps its "Log in" defaults and the log-out
 // button stays hidden. Logged in: name + role, avatar links to the
@@ -157,9 +194,10 @@ async function loadShellUser() {
   let me;
   try {
     const r = await fetch('/api/auth/me');
-    if (!r.ok) return;
+    if (!r.ok) { showStudentAccount(null); return; }
     me = await r.json();
   } catch { return; }
+  showStudentAccount(me);
   const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setText('avatarInitial', (me.display_name || '?').trim().charAt(0).toUpperCase() || '?');
   setText('avatarName', me.display_name || roleLabel(me.role));

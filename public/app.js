@@ -108,13 +108,52 @@ function timeGreeting() {
 function roleLabel(role) {
   return role === 'manager' ? 'Manager' : role === 'student' ? 'Student' : role;
 }
+// ---- Student change password (POST /api/auth/change-password) ----
+// Students had no UI for this endpoint — managers change their password
+// from the Manager portal, students from the "Your account" card on the
+// home page (and the same card on the hostel detail page). Same endpoint,
+// same session rotation: this browser stays logged in on a fresh cookie,
+// every other browser/device is signed out at once. The confirm field
+// is checked here first so a typo never reaches the server.
+function showStudentAccount(me) {
+  const card = $('studentAccountCard');
+  if (!card) return;
+  if (!me) {
+    $('studentAccountStatus').textContent = 'You are not logged in.';
+    $('studentNotLoggedIn').hidden = false;
+    return;
+  }
+  if (me.role === 'student') {
+    $('studentAccountStatus').textContent = 'Logged in as ' + (me.display_name || 'Student') + ' — Student.';
+    $('pwForm').hidden = false;
+  } else {
+    $('studentAccountStatus').textContent = 'You are logged in as ' + roleLabel(me.role) + '. This change-password form is for students — managers change their password from the Manager portal.';
+  }
+}
+const studentPwForm = $('pwForm');
+if (studentPwForm) studentPwForm.addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  if (fd.get('new_password') !== fd.get('confirm_password')) {
+    $('pwMsg').textContent = 'Error: the new passwords do not match.';
+    return;
+  }
+  const r = await fetch('/api/auth/change-password', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: fd.get('old_password'), new_password: fd.get('new_password') }) });
+  const d = await r.json().catch(() => ({}));
+  $('pwMsg').textContent = r.ok ? 'Password changed — every other browser and device is signed out.' : 'Error: ' + (d.error || 'could not change password');
+  if (r.ok) ev.target.reset();
+});
+
 async function loadShellUser() {
   let me;
   try {
     const r = await fetch('/api/auth/me');
-    if (!r.ok) return; // logged out: keep the logged-out greeting + Log in button
+    if (!r.ok) { showStudentAccount(null); return; } // logged out: keep the logged-out greeting + Log in button
     me = await r.json();
   } catch { return; } // offline: shell keeps its logged-out defaults
+  showStudentAccount(me);
   $('greetingTitle').textContent = timeGreeting() + ', ' + roleLabel(me.role);
   $('avatarInitial').textContent = (me.display_name || '?').trim().charAt(0).toUpperCase() || '?';
   $('avatarName').textContent = me.display_name || roleLabel(me.role);

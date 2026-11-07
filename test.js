@@ -2384,6 +2384,109 @@ async function main() {
       try { fs.rmSync(UL_UPLOADS, { recursive: true, force: true }); } catch {}
     }
 
+    // 23. Completeness round 2: read-only-dir fallback, Secure cookie,
+    // plain-HTTP login, student change-password UI.
+    // 23a. Fallback helper: requiring server.js as a module starts no
+    // listener (require.main guard) and exports writableBase +
+    // resolveDataPaths. A writable app dir keeps the original paths;
+    // a non-writable dir (/proc/1 is unwritable even as root) and a
+    // missing dir both fall back to os.tmpdir()/hostel; explicit
+    // DB_FILE / UPLOADS_DIR env vars always win.
+    const FB_DB = '/tmp/hostel-test-fb-' + process.pid + '.sqlite';
+    const FB_UPLOADS = '/tmp/hostel-test-fb-uploads-' + process.pid;
+    const fbScript = [
+      "const path = require('node:path');",
+      "const os = require('node:os');",
+      "const m = require(process.argv[1]);",
+      "const srvDir = process.argv[2];",
+      "const tmpHostel = path.join(os.tmpdir(), 'hostel');",
+      "const noEnv = m.resolveDataPaths({});",
+      "const withEnv = m.resolveDataPaths({ DB_FILE: '/tmp/fb-x.sqlite', UPLOADS_DIR: '/tmp/fb-x-up' });",
+      "console.log(JSON.stringify({",
+      "  selfWritable: m.writableBase(srvDir) === srvDir,",
+      "  procFallback: m.writableBase('/proc/1') === tmpHostel,",
+      "  missingFallback: m.writableBase('/nonexistent-hostel-xyz') === tmpHostel,",
+      "  noEnvDb: noEnv.dbFile === path.join(srvDir, 'data', 'hostel.sqlite'),",
+      "  noEnvUploads: noEnv.uploadsDir === path.join(srvDir, 'uploads'),",
+      "  envDbWins: withEnv.dbFile === '/tmp/fb-x.sqlite',",
+      "  envUploadsWins: withEnv.uploadsDir === '/tmp/fb-x-up',",
+      "}));",
+    ].join('\n');
+    const fbOut = await new Promise(resolve => {
+      const child = spawn(process.execPath, ['-e', fbScript,
+        path.join(__dirname, 'server.js'), __dirname], {
+        env: { ...process.env, ADMIN_CODE: 'test-admin-code', DB_FILE: FB_DB, UPLOADS_DIR: FB_UPLOADS },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let out = '', err = '';
+      child.stdout.on('data', c => { out += c; });
+      child.stderr.on('data', c => { err += c; });
+      const to = setTimeout(() => { child.kill(); resolve({ out, err, timedOut: true }); }, 15000);
+      child.on('exit', () => { clearTimeout(to); resolve({ out, err, timedOut: false }); });
+    });
+    let fb = null;
+    try { fb = JSON.parse(fbOut.out.trim().split('\n').pop()); } catch {}
+    ok('fallback: helper child exits on its own (no listener when required)', fbOut.timedOut === false, fbOut);
+    ok('fallback: writable app dir keeps its own path', !!(fb && fb.selfWritable), fb);
+    ok('fallback: non-writable dir falls back to tmp hostel dir', !!(fb && fb.procFallback), fb);
+    ok('fallback: missing dir falls back to tmp hostel dir', !!(fb && fb.missingFallback), fb);
+    ok('fallback: no env keeps data/hostel.sqlite + uploads/ next to server', !!(fb && fb.noEnvDb && fb.noEnvUploads), fb);
+    ok('fallback: explicit DB_FILE / UPLOADS_DIR env vars win', !!(fb && fb.envDbWins && fb.envUploadsWins), fb);
+    try { fs.unlinkSync(FB_DB); fs.unlinkSync(FB_DB + '-wal'); fs.unlinkSync(FB_DB + '-shm'); } catch {}
+    try { fs.rmSync(FB_UPLOADS, { recursive: true, force: true }); } catch {}
+
+    // 23b. Secure flag: the login Set-Cookie carries Secure (and
+    // HttpOnly); the logout cookie does too. The flag was already in
+    // the code — this test pins it so a regression is caught.
+    const secReg = await reg('stu-sec@example.com', 'student', 'secpass99', nextIp());
+    ok('secure: student registers for the cookie test', secReg.status === 201, secReg.status);
+    const secLogin = await req('POST', '/api/auth/login',
+      { body: { gmail: 'stu-sec@example.com', password: 'secpass99' }, headers: { 'X-Forwarded-For': nextIp() } });
+    ok('secure: login Set-Cookie carries Secure', secLogin.status === 200 && secLogin.setCookie.includes('Secure'), secLogin.setCookie);
+    ok('secure: login Set-Cookie carries HttpOnly', secLogin.setCookie.includes('HttpOnly'), secLogin.setCookie);
+    // 23b2. Real plain-HTTP login on 127.0.0.1: the cookie the server
+    // returns over plain HTTP authenticates the next request. (A real
+    // browser over plain HTTP would NOT store a Secure cookie — that
+    // is why live sites are HTTPS-only. The server side still works.)
+    const secMe = await me(secLogin.cookie);
+    ok('secure: plain-HTTP login cookie authenticates /api/auth/me', secMe.status === 200, secMe.status);
+    const secLogout = await req('POST', '/api/auth/logout', { headers: { Cookie: secLogin.cookie } });
+    ok('secure: logout Set-Cookie carries Secure + Max-Age=0',
+      secLogout.setCookie.includes('Secure') && secLogout.setCookie.includes('Max-Age=0'), secLogout.setCookie);
+
+    // 23c. Student change-password via the student flow: a fresh
+    // student changes their own password, the old one stops, the new
+    // one logs in.
+    const stuPw = await reg('stu-pw@example.com', 'student', 'stupwpass1', nextIp());
+    const stuPwLogin = await login('stu-pw@example.com', 'stupwpass1', nextIp());
+    const stuChg = await req('POST', '/api/auth/change-password',
+      { body: { old_password: 'stupwpass1', new_password: 'stupwpass2' }, headers: { Cookie: stuPwLogin.cookie } });
+    ok('student change-password succeeds for a student account', stuChg.status === 200 && stuChg.d.ok === true, stuChg);
+    const stuOldPw = await login('stu-pw@example.com', 'stupwpass1', nextIp());
+    ok('student change-password: old password stops working', stuOldPw.status === 401, stuOldPw.status);
+    const stuNewPw = await login('stu-pw@example.com', 'stupwpass2', nextIp());
+    ok('student change-password: new password logs in', stuNewPw.status === 200, stuNewPw.status);
+
+    // 23d. Student change-password UI exists on BOTH student pages
+    // (home + hostel detail), wired to the same endpoint, with a
+    // confirm field checked client-side before the request.
+    const appJs23 = fs.readFileSync(path.join(__dirname, 'public', 'app.js'), 'utf8');
+    const hostelJs23 = fs.readFileSync(path.join(__dirname, 'public', 'hostel.js'), 'utf8');
+    ok('student UI: home page has the change-password form with confirm',
+      indexHtml.includes('id="pwForm"') && indexHtml.includes('name="old_password"') &&
+      indexHtml.includes('name="new_password"') && indexHtml.includes('name="confirm_password"') &&
+      indexHtml.includes('id="pwMsg"'), 'index.html pwForm missing');
+    ok('student UI: hostel detail page has the change-password form with confirm',
+      fs.readFileSync(path.join(__dirname, 'public', 'hostel.html'), 'utf8').includes('id="pwForm"') &&
+      fs.readFileSync(path.join(__dirname, 'public', 'hostel.html'), 'utf8').includes('name="confirm_password"'),
+      'hostel.html pwForm missing');
+    ok('student UI: home JS wires the form to the endpoint + checks confirm first',
+      appJs23.includes("'/api/auth/change-password'") && appJs23.includes("do not match") &&
+      appJs23.includes('showStudentAccount'), 'app.js student pw handler missing');
+    ok('student UI: detail JS wires the form to the endpoint + checks confirm first',
+      hostelJs23.includes("'/api/auth/change-password'") && hostelJs23.includes("do not match") &&
+      hostelJs23.includes('showStudentAccount'), 'hostel.js student pw handler missing');
+
     console.log(`\n${pass} passed, ${fail} failed.`);
     if (fail) process.exitCode = 1; else console.log('ALL TESTS PASS');
   } finally {

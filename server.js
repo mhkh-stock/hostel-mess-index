@@ -23,7 +23,26 @@ const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 
 const PORT = Number(process.env.PORT || 3034);
-const DB_FILE = process.env.DB_FILE || path.join(__dirname, 'data', 'hostel.sqlite');
+const os = require('node:os');
+// Deploy-only writable-location fallback (FoodScope pattern): on a
+// local run __dirname is writable, so the original paths below are used
+// exactly as before. Only when the app dir cannot be written (e.g.
+// SnapDeploy's /app) do the database and uploads move to /tmp.
+// DB_FILE / UPLOADS_DIR env vars, when set, always win over the fallback.
+function writableBase(dir) {
+  try { fs.accessSync(dir, fs.constants.W_OK); return dir; }
+  catch { return path.join(os.tmpdir(), 'hostel'); }
+}
+function resolveDataPaths(env) {
+  const base = writableBase(__dirname);
+  const dbFile = env.DB_FILE || path.join(base, 'data', 'hostel.sqlite');
+  const uploadsDir = env.UPLOADS_DIR
+    ? path.resolve(env.UPLOADS_DIR)
+    : (base === __dirname ? path.join(__dirname, 'uploads') : path.join(os.tmpdir(), 'hostel-uploads'));
+  return { dataRoot: base, dbFile, uploadsDir };
+}
+const { dataRoot: DATA_ROOT, dbFile: DB_FILE, uploadsDir: UPLOADS_DIR } = resolveDataPaths(process.env);
+if (DATA_ROOT !== __dirname) console.log('Hostel data directory (read-only app dir fallback):', DATA_ROOT, '— DB:', DB_FILE, 'uploads:', UPLOADS_DIR);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const ADMIN_CODE = process.env.ADMIN_CODE;
 if (!ADMIN_CODE) { console.error('FATAL: ADMIN_CODE env var is required — set a private code, there is no default.'); process.exit(1); }
@@ -54,7 +73,6 @@ const ROOMS = ['single', 'double', 'triple', 'dorm'];
 const FACILITIES = ['WiFi', 'laundry', 'security', 'generator', 'attached bath'];
 const MAX_RENT = 500000;
 // ---- Phase 3: photos ----
-const UPLOADS_DIR = path.resolve(process.env.UPLOADS_DIR || path.join(__dirname, 'uploads'));
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024; // 5 MB per file
 const MAX_PHOTOS_PER_HOSTEL = 8;
 const MAX_PHOTOS_PER_REVIEW = 3; // enforced in Phase 4 (review photos)
@@ -2006,4 +2024,8 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, { error: 'not found' });
 });
 
-server.listen(PORT, () => console.log(`Hostel + Mess Index on http://127.0.0.1:${PORT}`));
+if (require.main === module) server.listen(PORT, () => console.log(`Hostel + Mess Index on http://127.0.0.1:${PORT}`));
+
+// Exported for tests only: the writable-dir fallback helpers. Requiring
+// this file as a module starts no listener (see the guard above).
+module.exports = { writableBase, resolveDataPaths, server };
