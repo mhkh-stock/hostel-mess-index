@@ -250,7 +250,39 @@
   by looking at a phone. No real-browser check of any page in any
   phase yet.
 
+## Review (2026-11-07, full review — tests 466 → 491 PASS)
+- Change-password now rotates the session (Bijli pattern): every
+  session dies, including the changing browser's, and the response
+  carries a fresh cookie. The endpoint also finally has a UI: a
+  change-password form in the manager portal's Your account card.
+  (Students have no account page at all, so their change-password
+  stays API-only — see "Next".)
+- Max rent + sort now run on the monthly equivalent (semester ÷ 6),
+  matching the cards, calculator and cheapest chip; the home filter
+  is labelled "Max rent per month (PKR)". A Rs 5,000/month cap now
+  finds both UET semester rows.
+- City-only edits can no longer leave a stale area from another city
+  (400 unless the area is sent too and belongs to the new city).
+- Maps: `maps.app.goo.gl` short links (what the Maps app shares) are
+  accepted; their embed falls back to the street address, and Maps
+  place URLs embed their @lat,lng. Plain `goo.gl` links still 400.
+- The master code can now open a pending photo while moderating
+  (public still gets 404); per-IP upload cap 100/hour on both upload
+  endpoints (env `UPLOAD_IP_LIMIT_PER_HOUR`, proven by a 429 test);
+  compare rejects duplicate ids (1,1 is 400; 1,1,2 returns 2).
+- Small display fixes: detail page shows amenity + mess-status labels
+  in plain words ("Security guard: Not available", "Mess: Active")
+  instead of raw keys; manager portal says "Approved" for active
+  managers (was "status: active"); admin hide/edit no longer claim
+  success when the request failed.
+- WCAG: re-checked, no change — text tokens already pass AA 4.5:1
+  (tests parse the real tokens); bright #ff6b1a is decoration only.
+
 ## Next (only with a real need)
+- Student change-password UI: students have no account page at all,
+  so their password change is API-only (the manager portal has the
+  form). A small student account page would close this; not built in
+  the 2026-11-07 review because it is a new page, not a fix.
 - More cities (Rawalpindi, Karachi, Faisalabad, Multan) once the
   three launch cities have real verified rows.
 - Hostel owners claiming a listing (phone-OTP verification) — only

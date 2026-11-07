@@ -301,6 +301,20 @@ $('logoutBtn').addEventListener('click', async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
   window.location.href = '/login-manager';
 });
+// Change password (POST /api/auth/change-password): the endpoint used
+// to have no UI anywhere, so nobody could reach it. The server rotates
+// the session — this browser stays logged in on a fresh cookie, every
+// other browser/device is signed out at once.
+$('pwForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const r = await fetch('/api/auth/change-password', { method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: fd.get('old_password'), new_password: fd.get('new_password') }) });
+  const d = await r.json().catch(() => ({}));
+  $('pwMsg').textContent = r.ok ? 'Password changed — every other browser and device is signed out.' : 'Error: ' + (d.error || 'could not change password');
+  if (r.ok) ev.target.reset();
+});
 
 async function init() {
   META = await (await fetch('/api/meta')).json();
@@ -317,11 +331,12 @@ async function init() {
     return;
   }
   const statusText = u.status === 'pending' ? 'Waiting for master approval'
-    : u.status === 'approved' ? 'Approved'
+    : u.status === 'active' ? 'Approved'
     : u.status === 'suspended' ? 'Suspended — contact the site admin'
     : 'status: ' + u.status;
   $('accountStatus').textContent = `Logged in as ${u.display_name} — Manager · ${statusText}.`;
   $('logoutBtn').hidden = false;
+  $('pwForm').hidden = false;
   $('portal').hidden = false;
   loadMy();
   loadReviews();

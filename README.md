@@ -92,7 +92,8 @@ currently active" is a real, showable state.
 - Manager photos show immediately (approved on upload); the master
   can remove any photo. Review photos (up to 3 per review) show only
   when the review is approved; if a review is rejected after approval,
-  its photos stop being public too.
+  its photos stop being public too. The master can open a pending
+  photo with the master code while moderating; anyone else gets a 404.
 - Pending photos are never public — only their owner (or the
   hostel's manager, for review photos) can see them.
 - **Storage is not permanent:** photos live under `UPLOADS_DIR`
@@ -104,11 +105,15 @@ currently active" is a real, showable state.
 ## Map (no API key)
 
 No Google Maps API key is used or needed. A manager pastes a Google
-Maps **share or embed link**; the server validates it (host must be
-`google.com` / `maps.google.com`, path must be a Maps embed/share
-URL) and renders the no-key embed. Any other URL is rejected — no
-arbitrary iframes. Without a saved link, the page embeds a map search
-for the street address. Distances are the hostel's own stated text,
+Maps **share or embed link** — including the short `maps.app.goo.gl`
+link the Maps app itself shares; a share link from the app is the one
+managers most often have. The server validates it (host must be
+`google.com` / `maps.google.com` / `maps.app.goo.gl`, path must be a
+Maps embed/share URL) and renders the no-key embed. A short link
+cannot be embedded directly, so its embed falls back to the street
+address; the saved link still opens in Google Maps from the detail
+page. Any other URL is rejected — no arbitrary iframes. Without a
+saved link, the page embeds a map search for the street address. Distances are the hostel's own stated text,
 labelled "as stated by the hostel" — never computed, never invented.
 
 ## Reviews (the honesty model)
@@ -146,7 +151,11 @@ labelled "as stated by the hostel" — never computed, never invented.
   No password, session token, or Gmail is ever written to a log.
 - Sessions: random 32-byte token, HMAC-SHA256 hash stored in the DB,
   24-hour expiry, HttpOnly `SameSite=Lax` cookie. Logout, suspend,
-  reject, and password reset all kill sessions at once.
+  reject, and password reset all kill sessions at once. Changing your
+  password (manager portal → Your account) kills every session too —
+  including the browser you change it from — and hands that browser a
+  fresh session cookie, so any other device or browser is signed out
+  at once.
 - Login: 5 failed attempts → 15-minute lock (account + IP), generic
   "invalid Gmail or password" error on every failure (never says
   whether the account exists), 429 on abuse. Registration is limited
@@ -156,6 +165,9 @@ labelled "as stated by the hostel" — never computed, never invented.
   — all covered by tests).
 - Uploads: magic bytes + extension + 5 MB + count caps + random
   names + path guard + `nosniff`; no file is ever served as HTML.
+  Uploads are also capped at 100 attempts/hour per IP (both upload
+  endpoints) — far above any honest burst, since one manager's whole
+  daily allowance is 20.
 - XSS: every user string is escaped on render (listing names, review
   text, replies, captions, rules, menus) — including the old
   `app.js` / `admin.js` pages.
@@ -237,8 +249,12 @@ is honest about what it is:
 ## Features
 
 - Filters: city, area, type (boys / girls / family), room (single /
-  double / triple / dorm), mess included vs separate, max rent;
-  sort by rent ascending / descending.
+  double / triple / dorm), mess included vs separate, max rent per
+  month; sort by rent ascending / descending. Max rent and sort both
+  run on the monthly equivalent — semester rows count at rent ÷ 6, the
+  same number the stat cards, the calculator and the cheapest chip
+  use — so a "max Rs 5,000/month" search finds the UET semester rows
+  (≈ Rs 1,941 and Rs 2,641/month).
 - 3D home-page map (pure CSS, no images): one room-block per
   VERIFIED/LISTED hostel linking to its detail page, wall-screen
   rent chart, student figures labelled only with real approved
@@ -258,7 +274,7 @@ is honest about what it is:
   logged-in students.
 - Manager portal (`/manager`): "My hostels", create/edit form with
   every fee field and amenity, photo upload, reviews queue (pending
-  first). Login is split into two totally separate pages: students use
+  first), and a change-password form in the Your account card. Login is split into two totally separate pages: students use
   `/login-student` (student login + register only) and managers use
   `/login-manager` (manager login + register only); `/login` is only a
   chooser with two links and no form. A page refuses the other role's
@@ -273,7 +289,7 @@ is honest about what it is:
 ```
 node server.js            # port 3034 (env PORT)
 DB_FILE=/tmp/hostel.sqlite UPLOADS_DIR=/tmp/hostel-uploads ADMIN_CODE=your-private-code node server.js
-node test.js              # 466 tests on a throwaway DB
+node test.js              # 491 tests on a throwaway DB
 ```
 
 `ADMIN_CODE` is **required** — the server exits with a FATAL message

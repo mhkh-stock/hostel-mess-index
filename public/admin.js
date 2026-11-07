@@ -31,15 +31,19 @@ $('loadBtn').addEventListener('click', async () => {
     if (r.ok) $('loadBtn').click();
   }));
   document.querySelectorAll('[data-hide]').forEach(b => b.addEventListener('click', async () => {
-    await fetch('/api/admin/hide', { method: 'POST', headers: H(), body: JSON.stringify({ id: Number(b.dataset.hide) }) });
-    $('msg').textContent = 'Hidden.'; $('loadBtn').click();
+    const r = await fetch('/api/admin/hide', { method: 'POST', headers: H(), body: JSON.stringify({ id: Number(b.dataset.hide) }) });
+    const d = await r.json().catch(() => ({}));
+    $('msg').textContent = r.ok ? 'Hidden.' : 'Error: ' + (d.error || 'could not hide');
+    if (r.ok) $('loadBtn').click();
   }));
   document.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', async () => {
     const body = { id: Number(b.dataset.edit) };
     if ($('rent-' + b.dataset.edit).value) body.rent_pkr = Number($('rent-' + b.dataset.edit).value);
     if ($('mess-' + b.dataset.edit).value) body.mess_pkr = Number($('mess-' + b.dataset.edit).value);
-    await fetch('/api/admin/edit', { method: 'POST', headers: H(), body: JSON.stringify(body) });
-    $('msg').textContent = 'Price change saved (history row written).'; $('loadBtn').click();
+    const r = await fetch('/api/admin/edit', { method: 'POST', headers: H(), body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    $('msg').textContent = r.ok ? 'Price change saved (history row written).' : 'Error: ' + (d.error || 'could not save price change');
+    if (r.ok) $('loadBtn').click();
   }));
 });
 

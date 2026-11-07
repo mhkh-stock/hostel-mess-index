@@ -11,6 +11,15 @@ const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c =>
 const LABELS = { security_deposit_pkr: 'Security deposit', advance_pkr: 'Advance',
   admission_fee_pkr: 'Admission fee', wifi_pkr: 'WiFi', laundry_pkr: 'Laundry',
   ac_pkr: 'AC', electricity_pkr: 'Electricity' };
+// Human labels for the amenity keys / states the API returns — the
+// detail page used to show raw keys ("security_guard: not_available").
+const AMENITY_LABELS = { wifi: 'WiFi', mess: 'Mess', laundry: 'Laundry', ac: 'AC',
+  generator: 'Generator / UPS', geyser: 'Geyser', parking: 'Parking', cctv: 'CCTV',
+  security_guard: 'Security guard', attached_bath: 'Attached bath', fridge: 'Fridge',
+  tv_lounge: 'TV lounge', library: 'Library', mineral_water: 'Mineral water',
+  daily_cleaning: 'Daily cleaning', kitchen_access: 'Kitchen access', gym: 'Gym' };
+const AMENITY_STATE_LABELS = { included: 'Included', charged: 'Charged extra', not_available: 'Not available' };
+const MESS_STATUS_LABELS = { active: 'Active', not_available: 'Not available', seasonal: 'Seasonal' };
 const id = new URLSearchParams(location.search).get('id');
 
 function feeLine(l, f) {
@@ -32,7 +41,7 @@ async function load() {
   const gallery = (d.photos || []).filter(p => p.kind !== 'review');
   const basis = l.price_basis === 'semester' ? 'per semester' : 'per month';
   const amenities = Object.entries(l.amenities || {}).map(([k, v]) =>
-    `<li>${escapeHtml(k)}: ${escapeHtml(v.state)}${v.state === 'charged' && v.price !== null && v.price !== undefined ? ' — ' + fmt(v.price) : ''}</li>`).join('');
+    `<li>${escapeHtml(AMENITY_LABELS[k] || k)}: ${escapeHtml(AMENITY_STATE_LABELS[v.state] || v.state)}${v.state === 'charged' && v.price !== null && v.price !== undefined ? ' — ' + fmt(v.price) : ''}</li>`).join('');
   $('detail').innerHTML = `<article class="listing"><h2>${escapeHtml(l.name)}</h2>
   <p>${escapeHtml(l.city)} · ${escapeHtml(l.area)}${l.near_university ? ' · near ' + escapeHtml(l.near_university) : ''}</p>
   <p>${escapeHtml(l.type)} · ${escapeHtml(l.room)} room · <b>${fmt(l.rent_pkr)} ${basis}</b>${l.price_basis === 'semester' ? ` (≈ ${fmt(l.monthly_rent_equivalent)}/month)` : ''}</p>
@@ -62,7 +71,7 @@ async function load() {
   <p>${l.rules ? escapeHtml(l.rules).replace(/\n/g, '<br>') : 'No rules stated'}</p>
   <p>${l.gate_open || l.gate_close ? 'Gate: ' + escapeHtml(l.gate_open || '—') + ' – ' + escapeHtml(l.gate_close || '—') : 'Gate timings not stated'}${l.visit_hours ? ' · Visit hours: ' + escapeHtml(l.visit_hours) : ''}</p>
   <h3>Mess</h3>
-  <p>${l.mess_status ? 'Mess: ' + escapeHtml(l.mess_status) : 'Mess status not stated'}${l.mess_included ? ' · included in rent' : (l.mess_pkr ? ' · ' + fmt(l.mess_pkr) + '/month' : '')}${l.meals_per_day ? ' · ' + l.meals_per_day + ' meals/day' : ''}</p>
+  <p>${l.mess_status ? 'Mess: ' + escapeHtml(MESS_STATUS_LABELS[l.mess_status] || l.mess_status) : 'Mess status not stated'}${l.mess_included ? ' · included in rent' : (l.mess_pkr ? ' · ' + fmt(l.mess_pkr) + '/month' : '')}${l.meals_per_day ? ' · ' + l.meals_per_day + ' meals/day' : ''}</p>
   ${l.mess_menu ? `<p>Menu: ${escapeHtml(l.mess_menu).replace(/\n/g, '<br>')}</p>` : ''}
   <p class="src">Source: ${escapeHtml(l.source) || '—'}</p></article>`;
 

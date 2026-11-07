@@ -43,7 +43,12 @@
 <p class="sub">Run your own hostels: fees, map, contact, rental period.</p></section>
 <section class="card" id="accountCard"><h2>Your account</h2><p id="accountStatus">Checking…</p>
 <p id="notLoggedIn" hidden>Please <a href="/login-manager">log in as a manager</a> first.</p>
-<button id="logoutBtn" hidden>Log out</button></section>
+<button id="logoutBtn" hidden>Log out</button>
+<form id="pwForm" hidden><h3>Change password</h3>
+<p>Changing your password signs out every other browser and device at once.</p>
+<label>Current password <input name="old_password" type="password" required minlength="8" autocomplete="current-password"></label>
+<label>New password <input name="new_password" type="password" required minlength="8" autocomplete="new-password"></label>
+<button>Change password</button></form><p id="pwMsg"></p></section>
 
 <div id="portal" hidden>
 <section class="card"><h2>My hostels</h2>

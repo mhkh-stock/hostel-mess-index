@@ -135,10 +135,23 @@ async function main() {
     ok('exactly one history row for the rent change',
       det2.history.length === 1 && det2.history[0].field === 'rent_pkr' && det2.history[0].old_value === 15000 && det2.history[0].new_value === 16000, det2.history);
 
-    // 5. Filters narrow correctly (city + max rent).
+    // 5. Filters narrow correctly (city + max rent, on the MONTHLY
+    // equivalent: semester rows count at rent / 6, like the cards and
+    // the calculator — so the UET cubicle at Rs 15,846/semester
+    // (~Rs 2,641/month) is inside a Rs 13,000/month cap).
     const filt = await get('/api/listings?city=Lahore&max_rent=13000');
-    ok('Lahore + max 13000 returns only cheap Lahore rows',
-      filt.listings.length >= 1 && filt.listings.every(l => l.city === 'Lahore' && l.rent_pkr <= 13000), filt.listings.map(l => l.name));
+    ok('Lahore + max 13000 returns only cheap Lahore rows (monthly equivalent)',
+      filt.listings.length >= 1 && filt.listings.every(l => l.city === 'Lahore' && l.monthly_rent_equivalent <= 13000)
+      && filt.listings.some(l => l.name.includes('Cubicle')), filt.listings.map(l => l.name));
+    const filt5k = await get('/api/listings?max_rent=5000');
+    ok('max 5000/month keeps the semester rows (equiv 1941 + 2641) and drops monthly 9990+',
+      filt5k.listings.some(l => l.name.includes('Dormitory')) && filt5k.listings.some(l => l.name.includes('Cubicle'))
+      && filt5k.listings.every(l => l.monthly_rent_equivalent <= 5000), filt5k.listings.map(l => l.monthly_rent_equivalent));
+    const sortAsc = await get('/api/listings?sort=asc');
+    ok('sort asc orders by monthly equivalent (semester rows first at 1941, 2641)',
+      sortAsc.listings[0].monthly_rent_equivalent === 1941 && sortAsc.listings[1].monthly_rent_equivalent === 2641
+      && sortAsc.listings.every((l, i) => i === 0 || l.monthly_rent_equivalent >= sortAsc.listings[i - 1].monthly_rent_equivalent),
+      sortAsc.listings.map(l => l.monthly_rent_equivalent));
 
     // 6. Monthly total maths: rent 15000 + mess 8000 = 23000 (fresh listing, no edits).
     const sub2 = await mgrPost(mgr0.cookie, { name: 'Calc Test Hostel', city: 'Islamabad', area: 'H-8',
@@ -239,17 +252,22 @@ async function main() {
       { body: { old_password: 'nope-nope1', new_password: 'stuapass3' }, headers: { Cookie: newPwLogin.cookie } });
     ok('change-password with wrong old password is 401', chgWrongOld.status === 401, chgWrongOld.status);
 
-    // 10h. Change password kills OTHER sessions but keeps the current one.
+    // 10h. Change password rotates the session (Bijli pattern): EVERY
+    // old session dies — the other one AND this browser's — and the
+    // response carries a fresh cookie that works.
     const stuD = await reg('stu-d@example.com', 'student', 'studpass1', nextIp());
     const dLogin1 = await login('stu-d@example.com', 'studpass1', nextIp());
     const dLogin2 = await login('stu-d@example.com', 'studpass1', nextIp());
     ok('second login creates a second session', dLogin1.cookie && dLogin2.cookie && dLogin1.cookie !== dLogin2.cookie);
-    await req('POST', '/api/auth/change-password',
+    const chgD = await req('POST', '/api/auth/change-password',
       { body: { old_password: 'studpass1', new_password: 'studpass2' }, headers: { Cookie: dLogin1.cookie } });
+    ok('change-password returns a fresh session cookie', chgD.status === 200 && !!chgD.cookie && chgD.cookie !== dLogin1.cookie, chgD.setCookie);
     const meOther = await me(dLogin2.cookie);
     ok('other session is dead after change-password', meOther.status === 401, meOther.status);
     const meCurrent = await me(dLogin1.cookie);
-    ok('current session survives change-password', meCurrent.status === 200, meCurrent.status);
+    ok('old current session is dead after change-password (rotated)', meCurrent.status === 401, meCurrent.status);
+    const meFresh = await me(chgD.cookie);
+    ok('fresh cookie from change-password works', meFresh.status === 200, meFresh.status);
 
     // 10i. Master reject is final.
     const mgrB = await reg('mgr-b@example.com', 'manager', 'mgrpass22', nextIp());
@@ -2223,6 +2241,147 @@ async function main() {
           regOk && l.status === 401, { regOk, login: l.status });
       }
       ok('login split: no unhandled rejection from any page handler', pageErrors.length === 0, JSON.stringify(pageErrors));
+    }
+
+    // ---- 22. Review (2026-11-07): fixes from the full review ----
+    // 22a. City-only edit must not leave a stale area from another city.
+    const cityMgr = await makeManager('r22-city@example.com');
+    const cityHostel = await mgrPost(cityMgr.cookie, { ...fullListing, name: 'R22 City Hostel', city: 'Lahore', area: 'Gulberg' });
+    ok('review: city test hostel created', cityHostel.status === 201, cityHostel.status);
+    const cityOnly = await mgrPut(cityMgr.cookie, cityHostel.d.listing.id, { city: 'Islamabad' });
+    ok('review: city-only edit is 400 when the area belongs to the old city',
+      cityOnly.status === 400 && cityOnly.d.error && cityOnly.d.error.includes('area'), cityOnly);
+    const cityWithArea = await mgrPut(cityMgr.cookie, cityHostel.d.listing.id, { city: 'Islamabad', area: 'H-8' });
+    ok('review: city + matching area edit is 200', cityWithArea.status === 200 && cityWithArea.d.listing.city === 'Islamabad' && cityWithArea.d.listing.area === 'H-8', cityWithArea.d.listing);
+    const citySame = await mgrPut(cityMgr.cookie, cityHostel.d.listing.id, { city: 'Peshawar', area: 'Hayatabad' });
+    ok('review: city + area edit back is 200', citySame.status === 200, citySame.status);
+
+    // 22b. Maps: the short link the Google Maps app shares (maps.app.goo.gl)
+    // is accepted; its embed falls back to the street address (a short link
+    // cannot be embedded directly). Place URLs embed their @lat,lng.
+    const gooCreate = await mgrPost(cityMgr.cookie, { ...fullListing, name: 'R22 Goo Link Hostel',
+      address: 'House 12, Street 3, University Road, Peshawar', maps_url: 'https://maps.app.goo.gl/AbC123xYz' });
+    ok('review: maps.app.goo.gl share link is accepted (201)', gooCreate.status === 201, gooCreate);
+    const gooDet = await get('/api/listings/' + gooCreate.d.listing.id);
+    ok('review: goo.gl link falls back to the address embed (no broken q=<url>)',
+      gooDet.listing.maps_embed_url.includes('maps.google.com/maps?q=House%2012') && !gooDet.listing.maps_embed_url.includes('goo.gl'), gooDet.listing.maps_embed_url);
+    ok('review: the saved goo.gl link still opens in Google Maps',
+      gooDet.listing.maps_url === 'https://maps.app.goo.gl/AbC123xYz', gooDet.listing.maps_url);
+    const placeCreate = await mgrPost(cityMgr.cookie, { ...fullListing, name: 'R22 Place URL Hostel',
+      maps_url: 'https://www.google.com/maps/place/UET+Lahore/@31.5779,74.3555,17z' });
+    ok('review: Maps place URL is accepted (201)', placeCreate.status === 201, placeCreate.status);
+    const placeDet = await get('/api/listings/' + placeCreate.d.listing.id);
+    ok('review: place URL embeds its @lat,lng',
+      placeDet.listing.maps_embed_url.includes('maps.google.com/maps?q=31.5779,74.3555'), placeDet.listing.maps_embed_url);
+    const badGoo = await mgrPost(cityMgr.cookie, { ...fullListing, name: 'R22 Bad Goo', maps_url: 'https://goo.gl/maps/abc123' });
+    ok('review: plain goo.gl short links are still rejected (only maps.app.goo.gl)',
+      badGoo.status === 400, badGoo.status);
+
+    // 22c. Master can see a pending photo (header auth); the public still cannot.
+    const pendMasterName = 'photo-' + 'b'.repeat(32) + '.jpg';
+    fs.writeFileSync(path.join(UPLOADS, pendMasterName), JPEG);
+    const tdb2 = new DatabaseSync(DB);
+    tdb2.prepare(`INSERT INTO photos(listing_id, uploader_id, kind, filename, caption, status)
+      VALUES(?,?,?,?,?,'pending')`).run(phId, mgr1.id, 'hostel', pendMasterName, 'master-view');
+    tdb2.close();
+    const pendMaster = await req('GET', '/api/photos/file/' + pendMasterName, { headers: { 'X-Master-Code': MASTER } });
+    ok('review: pending photo IS served to the master code (200)', pendMaster.status === 200, pendMaster.status);
+    const pendAnon2 = await fileGet('/api/photos/file/' + pendMasterName);
+    ok('review: pending photo is still NOT public (404)', pendAnon2.status === 404, pendAnon2.status);
+
+    // 22d. Compare needs 2 or 3 DIFFERENT ids.
+    const cmpDup = await get('/api/compare?ids=1,1');
+    ok('review: compare with duplicate ids (1,1) is 400', cmpDup.error && cmpDup.error.includes('2 or 3'), cmpDup);
+    const cmpDup2 = await get('/api/compare?ids=1,1,2');
+    ok('review: compare with ids 1,1,2 returns the 2 distinct listings',
+      cmpDup2.listings && cmpDup2.listings.length === 2, cmpDup2.listings && cmpDup2.listings.length);
+
+    // 22e. Frontend fixes are present in the served files.
+    const hostelJs22 = fs.readFileSync(path.join(__dirname, 'public', 'hostel.js'), 'utf8');
+    ok('review: detail page labels amenities + mess status in plain words',
+      hostelJs22.includes('AMENITY_LABELS') && hostelJs22.includes("'Security guard'") &&
+      hostelJs22.includes('MESS_STATUS_LABELS') && hostelJs22.includes("'Not available'") &&
+      !hostelJs22.includes('escapeHtml(k)}: ${escapeHtml(v.state)}'), 'labels missing');
+    const managerJs22 = fs.readFileSync(path.join(__dirname, 'public', 'manager.js'), 'utf8');
+    ok('review: manager portal maps active status to Approved + has the change-password form handler',
+      managerJs22.includes("u.status === 'active' ? 'Approved'") &&
+      managerJs22.includes("'/api/auth/change-password'") &&
+      managerJs22.includes("$('pwForm')"), 'manager.js fix missing');
+    ok('review: manager portal HTML has the change-password form',
+      mgrHtml.includes('id="pwForm"') && mgrHtml.includes('name="old_password"') && mgrHtml.includes('name="new_password"'),
+      'pwForm missing from manager.html');
+    const adminJs22 = fs.readFileSync(path.join(__dirname, 'public', 'admin.js'), 'utf8');
+    ok('review: admin hide/edit check the response before claiming success',
+      adminJs22.includes("r.ok ? 'Hidden.'") && adminJs22.includes("r.ok ? 'Price change saved"),
+      'admin.js still claims success unconditionally');
+    ok('review: home page labels the rent cap as per month',
+      indexHtml.includes('Max rent per month (PKR)'), 'index.html label unchanged');
+
+    // 22f. Per-IP upload limit: a second server with UPLOAD_IP_LIMIT_PER_HOUR=3
+    // lets 3 uploads through and answers 429 on the 4th.
+    const UL_PORT = 3099;
+    const UL_DB = '/tmp/hostel-test-ul-' + process.pid + '.sqlite';
+    const UL_UPLOADS = '/tmp/hostel-test-ul-uploads-' + process.pid;
+    const UL_BASE = 'http://127.0.0.1:' + UL_PORT;
+    const ulReq = (method, p, opts = {}) => new Promise((resolve, reject) => {
+      const r = httpMod.request({ host: '127.0.0.1', port: UL_PORT, path: p, method,
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } }, res => {
+        let s = ''; res.on('data', c => { s += c; }); res.on('end', () => {
+          let d; try { d = JSON.parse(s); } catch { d = s; }
+          const sc = res.headers['set-cookie'];
+          resolve({ status: res.statusCode, d,
+            cookie: Array.isArray(sc) && sc[0] ? sc[0].split(';')[0] : (sc ? sc.split(';')[0] : null) });
+        });
+      });
+      r.on('error', reject);
+      if (opts.body !== undefined) r.write(JSON.stringify(opts.body));
+      r.end();
+    });
+    const ulSrv = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+      env: { ...process.env, PORT: String(UL_PORT), DB_FILE: UL_DB, UPLOADS_DIR: UL_UPLOADS,
+        ADMIN_CODE: 'test-admin-code', LOGIN_LOCK_SECONDS: '2', UPLOAD_IP_LIMIT_PER_HOUR: '3' },
+      stdio: 'ignore',
+    });
+    try {
+      for (let i = 0; i < 50; i++) {
+        try { const r = await fetch(UL_BASE + '/'); if (r.ok) break; } catch {}
+        await new Promise(r => setTimeout(r, 200));
+      }
+      const ulReg = await ulReq('POST', '/api/auth/register',
+        { body: { gmail: 'ul-mgr@example.com', password: 'ulpass99', display_name: 'ul-mgr', phone: '03001234567', role: 'manager' },
+          headers: { 'X-Forwarded-For': nextIp() } });
+      await ulReq('POST', '/api/master/managers/decide',
+        { body: { user_id: ulReg.d.id, decision: 'approve' }, headers: { 'X-Master-Code': MASTER } });
+      const ulLogin = await ulReq('POST', '/api/auth/login',
+        { body: { gmail: 'ul-mgr@example.com', password: 'ulpass99' }, headers: { 'X-Forwarded-For': nextIp() } });
+      const ulCreate = await ulReq('POST', '/api/manager/listings',
+        { body: { name: 'UL Hostel', city: 'Lahore', area: 'Gulberg', type: 'boys', room: 'single', rent_pkr: 12000 },
+          headers: { Cookie: ulLogin.cookie } });
+      const ulHostelId = ulCreate.d.listing.id;
+      const ulUpload = () => {
+        const { body, boundary } = multipart({ listing_id: String(ulHostelId), kind: 'hostel', caption: '' }, jpegFile);
+        return new Promise((resolve, reject) => {
+          const r = httpMod.request({ host: '127.0.0.1', port: UL_PORT, path: '/api/manager/photos', method: 'POST',
+            headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, 'Content-Length': body.length, Cookie: ulLogin.cookie } }, res => {
+            let s = ''; res.on('data', c => { s += c; }); res.on('end', () => {
+              let d; try { d = JSON.parse(s); } catch { d = s; } resolve({ status: res.statusCode, d });
+            });
+          });
+          r.on('error', reject); r.write(body); r.end();
+        });
+      };
+      const u1 = await ulUpload();
+      const u2 = await ulUpload();
+      const u3 = await ulUpload();
+      ok('review: per-IP upload limit allows the first 3 uploads',
+        u1.status === 200 && u2.status === 200 && u3.status === 200, [u1.status, u2.status, u3.status]);
+      const u4 = await ulUpload();
+      ok('review: per-IP upload limit answers 429 on the 4th upload in the hour',
+        u4.status === 429, u4);
+    } finally {
+      ulSrv.kill();
+      try { fs.unlinkSync(UL_DB); fs.unlinkSync(UL_DB + '-wal'); fs.unlinkSync(UL_DB + '-shm'); } catch {}
+      try { fs.rmSync(UL_UPLOADS, { recursive: true, force: true }); } catch {}
     }
 
     console.log(`\n${pass} passed, ${fail} failed.`);

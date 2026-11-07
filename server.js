@@ -315,15 +315,20 @@ function deriveFacilities(stored, amenities) {
 }
 // No-key Google Maps embed: an embed URL is used as-is; a share URL (or a
 // bare address) becomes a maps?q=…&output=embed URL. Never an arbitrary URL.
+// A short link (maps.app.goo.gl) cannot be embedded directly — the saved
+// link still opens in Google Maps from the detail page, and the embed
+// falls back to the street-address search below.
 function mapsEmbedUrl(row) {
   const url = (row.maps_url || '').trim();
   if (url) {
     try {
       const u = new URL(url);
       if (u.pathname.startsWith('/maps/embed')) return url;
-      const q = u.searchParams.get('q');
+      const q = u.searchParams.get('q') || u.searchParams.get('query');
       if (q) return 'https://maps.google.com/maps?q=' + encodeURIComponent(q) + '&output=embed&z=15';
-      return 'https://maps.google.com/maps?q=' + encodeURIComponent(url) + '&output=embed&z=15';
+      // Place URLs carry coordinates as /@lat,lng,zoom — embed those.
+      const at = u.pathname.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+      if (at) return 'https://maps.google.com/maps?q=' + at[1] + ',' + at[2] + '&output=embed&z=15';
     } catch { return ''; }
   }
   const addr = (row.address || '').trim();
@@ -625,10 +630,6 @@ function parseCookies(req) {
   }
   return out;
 }
-function currentTokenHash(req) {
-  const token = verifySignedToken(parseCookies(req).hostel_session);
-  return token ? hmacHex(token, SESSION_SECRET) : null;
-}
 function sessionUser(req) {
   const token = verifySignedToken(parseCookies(req).hostel_session);
   if (!token) return null;
@@ -733,6 +734,39 @@ function registerHit(ip) {
   regAttempts.set(ip, rec);
 }
 
+// ---- upload rate limiting: 100 attempts/hour per IP (both upload
+// endpoints) ----
+// Per-account caps already bound uploads (20/day per manager, 3 per
+// review), but one IP could still drive many approved accounts at once.
+// 100/hour is far above any honest burst — a manager's whole daily
+// allowance is 20 — yet it stops a single network flooding the disk
+// with 5 MB files. Shared university/hostel WiFi stays well under it.
+// Env-overridable so tests can prove the 429 with a small limit.
+const UPLOAD_IP_LIMIT_PER_HOUR = Number(process.env.UPLOAD_IP_LIMIT_PER_HOUR || 100);
+const uploadIpHits = new Map(); // ip -> { count, firstAt }
+function uploadIpBlocked(ip) {
+  const rec = uploadIpHits.get(ip);
+  if (!rec) return false;
+  if (Date.now() - rec.firstAt > 60 * 60 * 1000) { uploadIpHits.delete(ip); return false; }
+  return rec.count >= UPLOAD_IP_LIMIT_PER_HOUR;
+}
+function uploadIpHit(ip) {
+  const now = Date.now();
+  const rec = uploadIpHits.get(ip) || { count: 0, firstAt: now };
+  if (now - rec.firstAt > 60 * 60 * 1000) { rec.count = 0; rec.firstAt = now; }
+  rec.count++;
+  uploadIpHits.set(ip, rec);
+}
+function uploadIpCheck(req, res) {
+  const ip = clientIp(req);
+  if (uploadIpBlocked(ip)) {
+    send(res, 429, { error: 'too many uploads from this network — try again later' });
+    return false;
+  }
+  uploadIpHit(ip);
+  return true;
+}
+
 // ---- audit ----
 function audit(action, actorId, actorRole, targetType, targetId, detail) {
   db.prepare('INSERT INTO audit(actor_id, actor_role, action, target_type, target_id, detail) VALUES(?,?,?,?,?,?)')
@@ -754,8 +788,10 @@ const TRACKED_FEE_FIELDS = ['rent_pkr', 'mess_pkr', 'security_deposit_pkr', 'adv
   'admission_fee_pkr', 'wifi_pkr', 'laundry_pkr', 'ac_pkr', 'electricity_pkr'];
 
 // Map URL validation: host must be google.com / www.google.com /
-// maps.google.com AND the path must be a Maps embed/share URL. Anything
-// else is rejected — no arbitrary iframes in any visitor's page.
+// maps.google.com / maps.app.goo.gl (the short link the Google Maps
+// app itself shares) AND the path must be a Maps embed/share URL.
+// Anything else is rejected — no arbitrary iframes in any visitor's
+// page.
 function validMapsUrl(raw) {
   if (raw === '' || raw === null || raw === undefined) return true;
   if (typeof raw !== 'string') return false;
@@ -763,7 +799,9 @@ function validMapsUrl(raw) {
   try { u = new URL(raw); } catch { return false; }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
   const host = u.hostname.toLowerCase();
-  if (host !== 'google.com' && host !== 'www.google.com' && host !== 'maps.google.com') return false;
+  if (host !== 'google.com' && host !== 'www.google.com' && host !== 'maps.google.com'
+    && host !== 'maps.app.goo.gl') return false;
+  if (host === 'maps.app.goo.gl') return true; // short share link, any path
   return u.pathname === '/maps' || u.pathname.startsWith('/maps/');
 }
 function validDateStr(s) {
@@ -812,6 +850,12 @@ function parseListingInput(b, existing) {
     if (typeof b.area !== 'string' || !effCity || !AREAS[effCity] || !AREAS[effCity].includes(b.area))
       return err('invalid area for city');
     updates.area = b.area;
+  }
+  // City-only edit: the listing's existing area must belong to the new
+  // city, or the row ends up claiming e.g. a Lahore area in Islamabad.
+  if (has('city') && !has('area') && existing && existing.area) {
+    if (!AREAS[b.city] || !AREAS[b.city].includes(existing.area))
+      return err('area does not belong to city — send area too');
   }
   if (has('near_university')) {
     if (typeof b.near_university !== 'string' || b.near_university.length > 200) return err('near_university too long (max 200)');
@@ -1142,12 +1186,14 @@ const server = http.createServer(async (req, res) => {
     if (!row || !verifyPassword(b.old_password, row.password_hash)) return send(res, 401, { error: 'invalid Gmail or password' });
     db.prepare('UPDATE users SET password_hash=?, failed_attempts=0, locked_until=0 WHERE id=?')
       .run(hashPassword(b.new_password), user.id);
-    // Kill every other session; the current one stays valid.
-    const tokenHash = currentTokenHash(req);
-    if (tokenHash) db.prepare('DELETE FROM sessions WHERE user_id=? AND token_hash != ?').run(user.id, tokenHash);
-    else db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);
+    // A password change means the old password may be compromised, so
+    // EVERY session dies — including this browser's — and the changing
+    // browser gets a fresh session cookie back (Bijli pattern). Any
+    // other device or browser is signed out at once.
+    db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);
+    const cookie = setSessionCookie(res, user);
     audit('user.password_changed', user.id, user.role, 'user', user.id, '');
-    return send(res, 200, { ok: true });
+    return send(res, 200, { ok: true }, { 'Set-Cookie': cookie });
   }
 
   // ---- master (X-Master-Code header, fail-closed) ----
@@ -1373,6 +1419,7 @@ const server = http.createServer(async (req, res) => {
     const row = db.prepare('SELECT * FROM reviews WHERE id=?').get(revPhoto[1]);
     if (!row) return send(res, 404, { error: 'not found' });
     if (row.student_id !== user.id) return send(res, 403, { error: 'not your review' });
+    if (!uploadIpCheck(req, res)) return;
     let parsed;
     try {
       parsed = await parseMultipartBody(req, PHOTO_MAX_BYTES + 256 * 1024);
@@ -1675,6 +1722,7 @@ const server = http.createServer(async (req, res) => {
     const user = requireManager(req, res);
     if (!user) return;
     if (!originOk(req)) return send(res, 403, { error: 'bad origin' });
+    if (!uploadIpCheck(req, res)) return;
     let parsed;
     try {
       parsed = await parseMultipartBody(req, PHOTO_MAX_BYTES + 256 * 1024);
@@ -1778,6 +1826,10 @@ const server = http.createServer(async (req, res) => {
         const listing = db.prepare('SELECT owner_id FROM listings WHERE id=?').get(photo.listing_id);
         allowed = !!listing && listing.owner_id === user.id;
       }
+      // The master moderates from the header-auth admin view (no cookie
+      // session), so the master code also opens a pending photo — the
+      // master has to see a review's photos to judge the review.
+      if (!allowed && isMaster(req)) allowed = true;
       if (!allowed) return send(res, 404, { error: 'not found' });
     }
     const full = path.join(UPLOADS_DIR, path.basename(photo.filename));
@@ -1799,6 +1851,10 @@ const server = http.createServer(async (req, res) => {
     const maxRent = u.searchParams.get('max_rent');
     const sort = u.searchParams.get('sort') === 'desc' ? 'DESC' : 'ASC';
     const showExamples = u.searchParams.get('show_examples') === '1';
+    if (maxRent !== null && maxRent !== '') {
+      const mr = Number(maxRent);
+      if (!Number.isFinite(mr) || mr < 0) return send(res, 400, { error: 'invalid max_rent' });
+    }
     const where = ['hidden=0'];
     const args = [];
     if (!showExamples) where.push("status != 'EXAMPLE'");
@@ -1808,20 +1864,28 @@ const server = http.createServer(async (req, res) => {
     if (room) { where.push('room=?'); args.push(room); }
     if (mess === 'included') where.push('mess_included=1');
     if (mess === 'separate') where.push('mess_included=0');
+    const rows = db.prepare(`SELECT * FROM listings WHERE ${where.join(' AND ')}`).all(...args);
+    // Max rent and sort both run on the MONTHLY equivalent (semester
+    // rows at rent / 6) — the same number the cards, the calculator
+    // and the cheapest chip use. Filtering on the raw rent hid the
+    // UET semester rows from any "max Rs 5,000/month" search even
+    // though they cost ~Rs 1,941–2,641/month.
+    let pubs = rows.map(publicListing);
     if (maxRent !== null && maxRent !== '') {
       const mr = Number(maxRent);
-      if (!Number.isFinite(mr) || mr < 0) return send(res, 400, { error: 'invalid max_rent' });
-      where.push('rent_pkr<=?'); args.push(mr);
+      pubs = pubs.filter(l => l.monthly_rent_equivalent <= mr);
     }
-    const rows = db.prepare(`SELECT * FROM listings WHERE ${where.join(' AND ')} ORDER BY rent_pkr ${sort}`).all(...args);
+    pubs.sort((a, b) => sort === 'DESC'
+      ? b.monthly_rent_equivalent - a.monthly_rent_equivalent
+      : a.monthly_rent_equivalent - b.monthly_rent_equivalent);
     // Counts always exclude EXAMPLE rows, even when examples are shown.
-    const counted = showExamples ? rows.filter(r => r.status !== 'EXAMPLE') : rows;
+    const counted = showExamples ? pubs.filter(r => r.status !== 'EXAMPLE') : pubs;
     const counts = {
       verified: counted.filter(r => r.status === 'VERIFIED').length,
       listed: counted.filter(r => r.status === 'LISTED').length,
       total: counted.length,
     };
-    return send(res, 200, { listings: rows.map(publicListing), counts });
+    return send(res, 200, { listings: pubs, counts });
   }
 
   // Public: approved reviews only, newest first, with approved review
@@ -1847,9 +1911,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && p === '/api/compare') {
-    const ids = (u.searchParams.get('ids') || '').split(',').map(s => Number(s)).filter(n => n > 0);
+    const ids = [...new Set((u.searchParams.get('ids') || '').split(',').map(s => Number(s)).filter(n => n > 0))];
     const showExamples = u.searchParams.get('show_examples') === '1';
-    if (ids.length < 2 || ids.length > 3) return send(res, 400, { error: 'compare needs 2 or 3 ids' });
+    if (ids.length < 2 || ids.length > 3) return send(res, 400, { error: 'compare needs 2 or 3 different ids' });
     const rows = db.prepare(`SELECT * FROM listings WHERE id IN (${ids.map(() => '?').join(',')}) AND hidden=0`).all(...ids);
     const visible = showExamples ? rows : rows.filter(r => r.status !== 'EXAMPLE');
     return send(res, 200, { listings: visible.map(publicListing) });
